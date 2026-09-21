@@ -407,7 +407,8 @@ struct PhotoEntry: TimelineEntry {
 struct PhotoProvider: AppIntentTimelineProvider {
   // what: entries are strings, so a long timeline costs bytes and needs no reload to advance
   private static let maxEntries = 120
-  private static let targetSpanSeconds: TimeInterval = 6 * 3600
+  // what: iOS may not ask a killed app for a new timeline for hours, so schedule days ahead
+  private static let targetSpanSeconds: TimeInterval = 48 * 3600
 
   /// Deterministic shuffle: the same album always shuffles the same way, so a reload
   /// does not hand the viewer a brand-new random photo.
@@ -444,10 +445,11 @@ struct PhotoProvider: AppIntentTimelineProvider {
     PhotoEntry
   > {
     let built = entries(for: configuration)
-    guard let last = built.last else {
-      return Timeline(entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(3600)))
+    guard !built.isEmpty else {
+      return Timeline(
+        entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(3600)))
     }
-    return Timeline(entries: built, policy: .after(last.date.addingTimeInterval(60)))
+    return Timeline(entries: built, policy: .atEnd)
   }
 
   private func entries(for configuration: SelectAlbumIntent) -> [PhotoEntry] {

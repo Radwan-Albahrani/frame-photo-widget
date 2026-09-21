@@ -228,3 +228,20 @@ always specific; a widget with nothing configured falls back to `frame:///`.
 The route is `app/(tabs)/(albums)/album/[id].tsx`. expo-router omits parenthesised groups from the
 URL, which is why the link is `/album/<id>` and not `/(tabs)/(albums)/album/<id>`.
 
+## A killed app must not freeze the rotation
+
+Rotation is carried entirely by pre-built timeline entries, so it does not need the extension to
+wake up and it does not spend the reload budget. Two values decide how long it survives without
+iOS asking for anything:
+
+- `targetSpanSeconds` (48 h) — how far ahead entries are scheduled. At `maxEntries = 120` an hourly
+  widget gets 49 entries, about two days; a five-minute widget fills all 120 slots, about ten hours.
+  It was 6 h, which meant an hourly widget ran out of entries after six and then sat on the last
+  photo until something reloaded it — exactly the "it only changed when I opened the app" symptom.
+- `.atEnd` — WidgetKit asks for the next timeline as soon as the final entry is consumed. `.after(date)`
+  defers that request to a timestamp, which iOS is free to honour late on a device where the app is
+  never launched.
+
+Entries stay anchored to absolute clock slots (`slotStart`), so a reload mid-timeline resumes at the
+photo the wall clock implies rather than restarting the sequence.
+
