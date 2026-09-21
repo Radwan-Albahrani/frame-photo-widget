@@ -1,7 +1,11 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "root": true,
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
     "includes": [
       "**",
@@ -12,7 +16,8 @@
       "!**/dist",
       "!src/backend/core/db/migrations-bundle.ts",
       "!**/coverage",
-      "!bun.lock"
+      "!bun.lock",
+      "!**/.agents"
     ]
   },
   "formatter": {
@@ -35,12 +40,28 @@
       "bracketSpacing": true
     }
   },
-  "json": { "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 } },
+  "json": {
+    "formatter": {
+      "enabled": true,
+      "indentStyle": "space",
+      "indentWidth": 2
+    }
+  },
   "linter": {
     "enabled": true,
-    "rules": { "preset": "recommended", "complexity": { "noStaticOnlyClass": "off" } }
+    "rules": {
+      "preset": "recommended",
+      "complexity": {
+        "noStaticOnlyClass": "off"
+      },
+      "a11y": {
+        "useValidAriaRole": "off"
+      }
+    }
   },
-  "assist": { "enabled": false },
+  "assist": {
+    "enabled": false
+  },
   "overrides": [
     {
       "includes": ["**/*.ts", "**/*.tsx"],
@@ -48,7 +69,13 @@
     },
     {
       "includes": ["**/*.test.ts", "**/*.test.tsx"],
-      "linter": { "rules": { "style": { "noNonNullAssertion": "off" } } }
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
     }
   ]
 }

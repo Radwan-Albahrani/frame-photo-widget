@@ -40,3 +40,6 @@ tmp/
 
 # @bacons/apple-targets: entitlements are derived from expo-target.config.js on prebuild
 targets/*/generated.entitlements
+
+# Vendored agent skills (tracked by skills-lock.json, same as the sister project)
+.agents

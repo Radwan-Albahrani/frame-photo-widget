@@ -42,6 +42,27 @@ the database is created inside the App Group container instead of the sandbox, w
 the widget open it at all. Without the key op-sqlite silently falls back to `NSLibraryDirectory` and
 the widget's SQLite source returns nothing.
 
+## Never build the simulator app with `CODE_SIGNING_ALLOWED=NO`
+
+This cost a build cycle and the symptom points nowhere near the cause.
+
+op-sqlite's iOS setup reads `OPSQLite_AppGroup` from the Info.plist and calls
+`containerURLForSecurityApplicationGroupIdentifier`. **If that returns nil it bails out of the whole
+JSI install**, and the app dies at import with:
+
+```
+Failed to install op-sqlite: The native OPSQLite Module could not be installed!
+```
+
+followed by a cascade of `Route "./_layout.tsx" is missing the required default export` warnings —
+because every module importing the db client failed to evaluate. Nothing in that output mentions
+entitlements or App Groups.
+
+The container is nil whenever the app group entitlement is not embedded in the binary, and
+`CODE_SIGNING_ALLOWED=NO` strips entitlements. `codesign -d --entitlements - <app>.app` printing
+nothing is the tell. Simulator builds ad-hoc sign and carry entitlements perfectly well, so just
+build without that flag.
+
 ## Two data sources, deliberately
 
 `FrameStore.albums()` dispatches on the `widgetSource` key so both approaches ship and can be

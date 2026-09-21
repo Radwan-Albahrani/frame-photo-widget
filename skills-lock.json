@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "skills": {
+    "animate": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/animate/SKILL.md",
+      "computedHash": "609e30351bf518b21a8cfe87cd1111554855527075d6563605bafe61963252f7"
+    },
+    "animate-expo": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/animate-expo/SKILL.md",
+      "computedHash": "c9eaf6603b97ca61b05c7561e1045b2f58b6d84cdf8d67565bff23a9ff94ce8a"
+    },
+    "animation-vocabulary": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/animation-vocabulary/SKILL.md",
+      "computedHash": "39319fc9a33c15be08666b3685f58666f042ff36bb902b7814c0834a5ba99df4"
+    },
+    "apple-design": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/apple-design/SKILL.md",
+      "computedHash": "8b94db67cb9edaad5f1501010804caa610131f1d2dfda0a27664b2e858deade3"
+    },
+    "diagnose": {
+      "source": "LegendApp/legend-skills",
+      "sourceType": "github",
+      "skillPath": "diagnose/SKILL.md",
+      "computedHash": "bb6f2f6537dd9ac1ae9d987088a36671782d1fa864f4a4d9b1212eb351760f40"
+    },
+    "diagnose-fix-loop": {
+      "source": "LegendApp/legend-skills",
+      "sourceType": "github",
+      "skillPath": "diagnose-fix-loop/SKILL.md",
+      "computedHash": "c7854d200bcc853aee1843f8b05f02181596f3ceb0df398c45745de7fed3a73b"
+    },
+    "drizzle": {
+      "source": "./node_modules/drizzle-kit/skills",
+      "sourceType": "local",
+      "computedHash": "1cbae732ee979cebb27a27154e923c1a669a22897c9b01669e2011bfeb8aa804"
+    },
+    "drizzle-generate": {
+      "source": "./node_modules/drizzle-kit/skills",
+      "sourceType": "local",
+      "computedHash": "3d520b8d77221aa72bc7e34dc13cd133ffcd569c32135793ec43add27f42ebec"
+    },
+    "drizzle-hints": {
+      "source": "./node_modules/drizzle-kit/skills",
+      "sourceType": "local",
+      "computedHash": "dc9bc7ed9a0d21f63e540a8702cb4cb34b51c585493507cec86fd21d9c255166"
+    },
+    "drizzle-migrations": {
+      "source": "./node_modules/drizzle-kit/skills",
+      "sourceType": "local",
+      "computedHash": "aa30ca0f9e0a66e4feaa50a08e80b2908c8bb720433d1159107739f3aa2fbb86"
+    },
+    "drizzle-output-modes": {
+      "source": "./node_modules/drizzle-kit/skills",
+      "sourceType": "local",
+      "computedHash": "5ad547aeb18630af024dd026b96364bce0df6274660f1d59ae11f259916b63c2"
+    },
+    "drizzle-pull": {
+      "source": "./node_modules/drizzle-kit/skills",
+      "sourceType": "local",
+      "computedHash": "7be6f2a67aa5a4713352c23284d6cdacdc277e9d2ad8a159899257416327254c"
+    },
+    "drizzle-push": {
+      "source": "./node_modules/drizzle-kit/skills",
+      "sourceType": "local",
+      "computedHash": "ff167ed20bdc051f9f8679a109d7dd065f91605adc1bd6c6af5c1c4d9ce0c7a4"
+    },
+    "drizzle-responses-and-errors": {
+      "source": "./node_modules/drizzle-kit/skills",
+      "sourceType": "local",
+      "computedHash": "fbc0b0d5aa071cf06eee711b5de52ad821a0d1e5bc0c703f0c59b429697331d3"
+    },
+    "find-animation-opportunities": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-animation-opportunities/SKILL.md",
+      "computedHash": "8fb8492eb8fbed1313cb430b5831d925d9b8964ca24f3c41a6244cbd1fd98732"
+    },
+    "genie": {
+      "source": "y0u-0/genie-react",
+      "sourceType": "github",
+      "skillPath": "skills/genie/SKILL.md",
+      "computedHash": "85c5b25b28408b0de32cfe43941b1354455c9ff4e1a0a5dc2cde7154777b14c1"
+    },
+    "improve-animations": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/improve-animations/SKILL.md",
+      "computedHash": "eeb219a407e325b687af88db25771cc3018e3148245604112f5ac6990b6fd79c"
+    },
+    "legend-list-best-practices": {
+      "source": "LegendApp/legend-skills",
+      "sourceType": "github",
+      "skillPath": "legend-list-best-practices/SKILL.md",
+      "computedHash": "61b4dec19494fcae599b7aedfa1553323a46f446536feeb9b2a584a298d45cef"
+    },
+    "legend-state-best-practices": {
+      "source": "LegendApp/legend-skills",
+      "sourceType": "github",
+      "skillPath": "legend-state-best-practices/SKILL.md",
+      "computedHash": "84f1cf99560fdf14eb722a8dafe4e6d09f59b5db2749a80ef97fcf35f0ffe022"
+    },
+    "no-ai-slop": {
+      "source": "petergyang/no-ai-slop",
+      "sourceType": "github",
+      "skillPath": "skills/no-ai-slop/SKILL.md",
+      "computedHash": "7ea5a3f35faef4856e30f4ee7556e4748f799caeb1ca498229fd75510623bef4"
+    },
+    "react-coding-style": {
+      "source": "LegendApp/legend-skills",
+      "sourceType": "github",
+      "skillPath": "react-coding-style/SKILL.md",
+      "computedHash": "0b5629a19a73cad9d0ee56dd77acd41031ab7e2275df056b2288a6f1583d6e68"
+    },
+    "review-animations": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/review-animations/SKILL.md",
+      "computedHash": "b9f669af5ae280c19a592a94611520335a81de25c88f225bf60ae4b2d66c8c7c"
+    },
+    "simplify": {
+      "source": "LegendApp/legend-skills",
+      "sourceType": "github",
+      "skillPath": "simplify/SKILL.md",
+      "computedHash": "bfbefa03b417407210f6fd35a008ec8b4edf1f34bd7e656e54a93d586c45c59e"
+    }
+  }
+}

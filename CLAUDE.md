@@ -4,6 +4,13 @@ Frame puts your own photos on your Home Screen. It exists because photo widget a
 paid: **no ads, no subscriptions, no paywall, no limits on albums or photos, ever.** Do not add an
 ads SDK, profiling analytics, a purchase flow or "pro" gating, and do not scaffold them for later.
 
+## Dark mode only
+
+The app is **dark only** — there is no light theme and no `useColorScheme` branching. `userInterfaceStyle`
+is pinned to `dark` in `app.json` for both the app and iOS, and `src/ui/theme.ts` exports one flat set of
+dark tokens. Photos read best on a dark ground, and the user does not want light mode. Do not add a light
+palette or a theme toggle.
+
 ## NO COMMENTS — enforced by a pre-commit hook
 
 **Do not write comments.** `tools/lints/no-new-comments.ts` runs on every commit (via

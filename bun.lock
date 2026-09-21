@@ -5,6 +5,7 @@
     "": {
       "name": "photo-widget",
       "dependencies": {
+        "@expo/ui": "~57.0.19",
         "@expo/vector-icons": "^15.1.1",
         "@op-engineering/op-sqlite": "^18.2.3",
         "drizzle-orm": "^1.0.0-rc.4",

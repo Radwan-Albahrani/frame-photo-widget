@@ -25,8 +25,9 @@
     "gates": "bun run types:check && bun run lint && bun run lint:silent:branch && bun run format && bun run test"
   },
   "dependencies": {
-    "@op-engineering/op-sqlite": "^18.2.3",
+    "@expo/ui": "~57.0.19",
     "@expo/vector-icons": "^15.1.1",
+    "@op-engineering/op-sqlite": "^18.2.3",
     "drizzle-orm": "^1.0.0-rc.4",
     "expo": "~57.0.24",
     "expo-blur": "~57.0.3",
