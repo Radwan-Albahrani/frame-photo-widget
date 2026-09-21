@@ -74,13 +74,23 @@ export default function SettingsScreen() {
       setBytes(await usedBytes());
       const parts = [`Rebuilt ${countLabel(result.rebuilt, "photo", "photos")}`];
       if (result.unlinked > 0) {
-        parts.push(`${result.unlinked} added before linking was kept, add those again`);
+        parts.push(
+          `${countLabel(result.unlinked, "older photo has", "older photos have")} no library link and stayed as they were`
+        );
+      }
+      if (result.unmatched > 0) {
+        parts.push(
+          `${countLabel(result.unmatched, "pick isn't", "picks aren't")} in Frame yet, add those from an album`
+        );
+      }
+      if (result.failures.length > 0) {
+        parts.push(`${result.failures.length} failed: ${result.failures[0]}`);
       }
       setRebuild(parts.join(" · "));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       reportFailure({ op: "settings.rebuildCopies" }, error);
-      setRebuild("Could not rebuild the copies. Try again.");
+      setRebuild(`Could not rebuild: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, []);
 
@@ -180,7 +190,7 @@ export default function SettingsScreen() {
           footer={
             <NativeText>
               {rebuild ??
-                "Opens the photo picker with your photos already selected. Tap Done and Frame rebuilds its copies at the current size. Frame never gets access to your photo library."}
+                "Opens the photo picker. Select the photos you already added, tap Done, and Frame rewrites its copies of them at the current size, in place. Frame never gets access to your photo library."}
             </NativeText>
           }
         >

@@ -89,31 +89,49 @@ private func store(_ image: UIImage, fileName: String, quality: Double) throws -
   ]
 }
 
-// what: the provider's URL is only valid inside its callback, so the file is copied out before use
+// what: PHPicker refuses the abstract public.image, so the request names the concrete type the
+// provider registered; the file URL is only valid inside the callback, so it is copied out first
 private func copiedFile(from provider: NSItemProvider) async throws -> URL {
-  try await withCheckedThrowingContinuation { continuation in
-    provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, error in
-      guard let url else {
-        continuation.resume(throwing: error ?? StoreError.unreadableSource("picker item"))
-        return
-      }
-      let copy = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-        .appendingPathExtension(url.pathExtension.isEmpty ? "img" : url.pathExtension)
-      do {
-        try FileManager.default.copyItem(at: url, to: copy)
-        continuation.resume(returning: copy)
-      } catch {
-        continuation.resume(throwing: error)
+  let type =
+    provider.registeredTypeIdentifiers.first { UTType($0)?.conforms(to: .image) == true }
+    ?? provider.registeredTypeIdentifiers.first
+    ?? UTType.image.identifier
+  let destination = FileManager.default.temporaryDirectory
+    .appendingPathComponent(UUID().uuidString)
+    .appendingPathExtension(UTType(type)?.preferredFilenameExtension ?? "img")
+  do {
+    return try await withCheckedThrowingContinuation { continuation in
+      provider.loadFileRepresentation(forTypeIdentifier: type) { url, error in
+        guard let url else {
+          continuation.resume(throwing: error ?? StoreError.unreadableSource(type))
+          return
+        }
+        do {
+          try FileManager.default.copyItem(at: url, to: destination)
+          continuation.resume(returning: destination)
+        } catch {
+          continuation.resume(throwing: error)
+        }
       }
     }
+  } catch {
+    // what: some providers only serve bytes, not a file; the bytes are written out so one decode path remains
+    let data: Data = try await withCheckedThrowingContinuation { continuation in
+      provider.loadDataRepresentation(forTypeIdentifier: type) { data, dataError in
+        if let data { continuation.resume(returning: data) } else {
+          continuation.resume(throwing: dataError ?? error)
+        }
+      }
+    }
+    try data.write(to: destination, options: .atomic)
+    return destination
   }
 }
 
 private final class PickerSession: NSObject, PHPickerViewControllerDelegate {
-  private let continuation: CheckedContinuation<[PHPickerResult], Never>
+  private let continuation: CheckedContinuation<[PHPickerResult], Error>
 
-  init(_ continuation: CheckedContinuation<[PHPickerResult], Never>) {
+  init(_ continuation: CheckedContinuation<[PHPickerResult], Error>) {
     self.continuation = continuation
   }
 
@@ -138,39 +156,52 @@ public final class FramePhotoStoreModule: Module {
       return try store(image, fileName: fileName, quality: quality)
     }
 
-    // what: the picker opens with the given assets already ticked, so one Done rebuilds every copy
-    // and the app never holds photo-library access
+    // what: PHPicker hands back empty item providers for preselected assets, so the picker opens
+    // empty and the photos the user ticks are matched to the copies Frame already holds
     AsyncFunction("rebuildCopies") {
-      (fileNamesByAsset: [String: [String]], maxPixels: Int, quality: Double) -> [[String: Any]] in
-      var configuration = PHPickerConfiguration(photoLibrary: .shared())
-      configuration.filter = .images
-      configuration.selectionLimit = 0
-      configuration.preferredAssetRepresentationMode = .current
-      configuration.preselectedAssetIdentifiers = Array(fileNamesByAsset.keys)
-      let picker = PHPickerViewController(configuration: configuration)
-      guard let presenter = await MainActor.run(body: { self.appContext?.utilities?.currentViewController() })
-      else { throw StoreError.noPresenter }
-      let results: [PHPickerResult] = await withCheckedContinuation { continuation in
-        let session = PickerSession(continuation)
-        self.pickerSession = session
-        picker.delegate = session
-        DispatchQueue.main.async { presenter.present(picker, animated: true) }
+      (fileNamesByAsset: [String: [String]], maxPixels: Int, quality: Double) -> [String: Any] in
+      let results: [PHPickerResult] = try await withCheckedThrowingContinuation { continuation in
+        DispatchQueue.main.async {
+          guard let presenter = self.appContext?.utilities?.currentViewController() else {
+            continuation.resume(throwing: StoreError.noPresenter)
+            return
+          }
+          var configuration = PHPickerConfiguration(photoLibrary: .shared())
+          configuration.filter = .images
+          configuration.selectionLimit = 0
+          configuration.preferredAssetRepresentationMode = .current
+          let picker = PHPickerViewController(configuration: configuration)
+          let session = PickerSession(continuation)
+          self.pickerSession = session
+          picker.delegate = session
+          presenter.present(picker, animated: true)
+        }
       }
       self.pickerSession = nil
       var rebuilt: [[String: Any]] = []
+      var failures: [String] = []
+      var unmatched = 0
       for result in results {
         guard let assetId = result.assetIdentifier, let fileNames = fileNamesByAsset[assetId]
-        else { continue }
-        let copy = try await copiedFile(from: result.itemProvider)
-        defer { try? FileManager.default.removeItem(at: copy) }
-        let image = try downsample(url: copy, maxPixels: maxPixels)
-        for fileName in fileNames {
-          var saved = try store(image, fileName: fileName, quality: quality)
-          saved["assetId"] = assetId
-          rebuilt.append(saved)
+        else {
+          unmatched += 1
+          continue
+        }
+        do {
+          let copy = try await copiedFile(from: result.itemProvider)
+          defer { try? FileManager.default.removeItem(at: copy) }
+          let image = try downsample(url: copy, maxPixels: maxPixels)
+          for fileName in fileNames {
+            var saved = try store(image, fileName: fileName, quality: quality)
+            saved["assetId"] = assetId
+            rebuilt.append(saved)
+          }
+        } catch {
+          let types = result.itemProvider.registeredTypeIdentifiers.joined(separator: ",")
+          failures.append("\(assetId.prefix(8)) [\(types)]: \(error.localizedDescription)")
         }
       }
-      return rebuilt
+      return ["rebuilt": rebuilt, "failures": failures, "unmatched": unmatched]
     }
 
     AsyncFunction("deletePhotos") { (fileNames: [String]) -> Int in

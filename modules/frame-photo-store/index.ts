@@ -4,6 +4,12 @@ export interface RebuiltPhoto extends SavedPhoto {
   assetId: string;
 }
 
+export interface RebuildResult {
+  rebuilt: RebuiltPhoto[];
+  failures: string[];
+  unmatched: number;
+}
+
 export interface SavedPhoto {
   fileName: string;
   uri: string;
@@ -32,7 +38,7 @@ interface FramePhotoStoreModule {
     fileNamesByAsset: Record<string, string[]>,
     maxPixels: number,
     quality: number
-  ): Promise<RebuiltPhoto[]>;
+  ): Promise<RebuildResult>;
   usedBytes(): Promise<number>;
 }
 

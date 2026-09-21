@@ -235,7 +235,13 @@ Native pixel needs on an iPhone at @3x are about 493 px (small), 1049 × 493 (me
 1049 × 1095 (large). Stored copies are downsampled to `WIDGET_THUMBNAIL_MAX_PIXELS` = 1600 on the
 long edge, which is what a portrait photo needs to fill a large or medium widget at native pixels
 (1049 wide → ~1350 tall). Photos imported before that change are 1200 px and fill a large widget
-at ~0.9× native until re-imported. An iPad extra-large widget wants ~1840 px and is the one frame
+at ~0.9× native until rebuilt. Settings → Photo quality → Rebuild photo copies does that without
+photo-library access: it opens PHPicker empty, and every photo the user ticks is matched by asset
+identifier to the copies Frame already holds and rewritten in place. It must open empty because
+`preselectedAssetIdentifiers` returns *empty item providers* for assets left ticked — the picker
+assumes the app already has them — so preselection cannot deliver bytes to an app without library
+permission. The file request also has to name a concrete type the provider registered; the
+abstract `public.image` is refused. An iPad extra-large widget wants ~1840 px and is the one frame
 still storage-limited.
 
 Two dead ends worth not repeating: a per-family pixel table (640 for every family) both starved

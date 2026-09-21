@@ -4,6 +4,7 @@ import { db } from "@backend/core/db/client";
 import { createId, now } from "@backend/core/db/ids";
 import { albums, photos, type PhotoRow } from "@backend/core/db/schema";
 import { nextSortOrder } from "@backend/core/db/sortOrder";
+import { reportFailure } from "@backend/core/log/logger";
 import { deletePhotoFiles, hashPhotoFiles, rebuildCopies, savePhoto } from "@native/photoStore";
 
 export class PhotosService {
@@ -59,7 +60,13 @@ export class PhotosService {
     return created;
   }
 
-  static async rebuildAllCopies(): Promise<{ rebuilt: number; unlinked: number; picked: number }> {
+  static async rebuildAllCopies(): Promise<{
+    rebuilt: number;
+    unlinked: number;
+    picked: number;
+    unmatched: number;
+    failures: string[];
+  }> {
     const rows = await db.select().from(photos).all();
     const linked = rows.filter((row) => row.assetId !== null && row.assetId !== "");
     const fileNamesByAsset: Record<string, string[]> = {};
@@ -67,7 +74,10 @@ export class PhotosService {
       const assetId = row.assetId as string;
       fileNamesByAsset[assetId] = [...(fileNamesByAsset[assetId] ?? []), row.fileName];
     }
-    const saved = await rebuildCopies(fileNamesByAsset);
+    const { rebuilt: saved, failures, unmatched } = await rebuildCopies(fileNamesByAsset);
+    for (const failure of failures) {
+      reportFailure({ op: "photos.rebuildCopy", detail: failure }, new Error(failure));
+    }
     for (const copy of saved) {
       await db
         .update(photos)
@@ -84,6 +94,8 @@ export class PhotosService {
       rebuilt: saved.length,
       unlinked: rows.length - linked.length,
       picked: new Set(saved.map((copy) => copy.assetId)).size,
+      unmatched,
+      failures,
     };
   }
 

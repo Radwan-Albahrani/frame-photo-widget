@@ -1,7 +1,11 @@
-import native, { type RebuiltPhoto, type SavedPhoto } from "@/modules/frame-photo-store";
+import native, {
+  type RebuildResult,
+  type RebuiltPhoto,
+  type SavedPhoto,
+} from "@/modules/frame-photo-store";
 import { WIDGET_THUMBNAIL_MAX_PIXELS, WIDGET_THUMBNAIL_QUALITY } from "@const/identifiers";
 
-export type { RebuiltPhoto, SavedPhoto };
+export type { RebuildResult, RebuiltPhoto, SavedPhoto };
 
 export const isPhotoStoreAvailable = native != null;
 
@@ -47,8 +51,10 @@ export function reloadWidgets(): void {
 
 export async function rebuildCopies(
   fileNamesByAsset: Record<string, string[]>
-): Promise<RebuiltPhoto[]> {
-  if (native == null || Object.keys(fileNamesByAsset).length === 0) return [];
+): Promise<RebuildResult> {
+  if (native == null || Object.keys(fileNamesByAsset).length === 0) {
+    return { rebuilt: [], failures: [], unmatched: 0 };
+  }
   return native.rebuildCopies(
     fileNamesByAsset,
     WIDGET_THUMBNAIL_MAX_PIXELS,
