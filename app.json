@@ -22,7 +22,22 @@
         "UIPrefersShowingLanguageSettings": true,
         "OPSQLite_AppGroup": "group.com.lumen.frame"
       },
-      "userInterfaceStyle": "dark"
+      "userInterfaceStyle": "dark",
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["1C8F.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+          }
+        ]
+      }
     },
     "plugins": [
       "expo-router",
