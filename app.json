@@ -17,8 +17,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "CADisableMinimumFrameDurationOnPhone": true,
         "NSPhotoLibraryUsageDescription": "Frame only reads the photos you pick yourself, to show them in your widgets. Nothing is uploaded and nothing else in your library is read.",
-        "CFBundleLocalizations": ["en", "ar"],
-        "UIPrefersShowingLanguageSettings": true,
+        "CFBundleLocalizations": ["en"],
         "OPSQLite_AppGroup": "group.com.lumen.frame"
       },
       "userInterfaceStyle": "dark",
