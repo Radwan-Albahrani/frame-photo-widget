@@ -7,7 +7,12 @@ import {
   type Health,
   type WidgetReport,
 } from "@backend/api/diagnostics/diagnostics.service";
-import { coversUntil, familyLabel, nextChangeAfter } from "@backend/api/diagnostics/widgetStatus";
+import {
+  ARCHIVE_LIMIT_BYTES,
+  coversUntil,
+  familyLabel,
+  nextChangeAfter,
+} from "@backend/api/diagnostics/widgetStatus";
 import {
   agoFrom,
   countLabel,
@@ -86,7 +91,10 @@ function WidgetSection({ widget, now }: { widget: WidgetReport; now: number }) {
         <NativeText>{photoCountLabel(widget.entries)}</NativeText>
       </LabeledContent>
       <LabeledContent label="Photo size">
-        <NativeText>{`${widget.decodePixels} px`}</NativeText>
+        <NativeText>{`${widget.frameWidth} × ${widget.frameHeight} px, native`}</NativeText>
+      </LabeledContent>
+      <LabeledContent label="Schedule size">
+        <NativeText>{`${formatBytes(widget.archiveBytes)} of ${formatBytes(ARCHIVE_LIMIT_BYTES)}`}</NativeText>
       </LabeledContent>
     </Section>
   );

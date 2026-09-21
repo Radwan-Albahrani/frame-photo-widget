@@ -16,6 +16,6 @@ export const WIDGET_STATUS_KEY = "widgetStatus";
 
 export const WIDGET_KIND_PHOTO = "FramePhotoWidget";
 
-export const WIDGET_THUMBNAIL_MAX_PIXELS = 1200;
+export const WIDGET_THUMBNAIL_MAX_PIXELS = 1600;
 
 export const WIDGET_THUMBNAIL_QUALITY = 0.85;

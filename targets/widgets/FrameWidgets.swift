@@ -252,12 +252,38 @@ enum SQLiteSource {
 // MARK: - Memory-safe image loading
 
 enum PhotoLoader {
-  static func image(fileName: String?, maxPixels: Int) -> Image? {
-    guard let fileName, !fileName.isEmpty, let url = FrameStore.photoURL(fileName) else {
-      return nil
-    }
-    let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-    guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else { return nil }
+  static func image(fileName: String?, frame: CGSize, fit: Bool) -> Image? {
+    guard let data = jpeg(fileName: fileName, frame: frame, fit: fit), let ui = UIImage(data: data)
+    else { return nil }
+    return Image(uiImage: ui)
+  }
+
+  // what: WidgetKit archives a UIImage's JPEG bytes as-is but re-encodes a CGImage losslessly at 4x the size
+  static func jpeg(fileName: String?, frame: CGSize, fit: Bool) -> Data? {
+    guard let fileName, !fileName.isEmpty, let url = FrameStore.photoURL(fileName),
+      let source = CGImageSourceCreateWithURL(
+        url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+      let size = pixelSize(of: source), size.width > 0, size.height > 0
+    else { return nil }
+    let ratios = (frame.width / size.width, frame.height / size.height)
+    let scale = min(fit ? min(ratios.0, ratios.1) : max(ratios.0, ratios.1), 1)
+    let longEdge = Int((max(size.width, size.height) * scale).rounded(.up))
+    guard let decoded = thumbnail(source, maxPixels: longEdge) else { return nil }
+    let visible = fit ? decoded : cropped(decoded, toAspectOf: frame)
+    return UIImage(cgImage: visible).jpegData(compressionQuality: 0.9)
+  }
+
+  private static func pixelSize(of source: CGImageSource) -> CGSize? {
+    guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+      let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
+      let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue
+    else { return nil }
+    let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
+    return orientation >= 5
+      ? CGSize(width: height, height: width) : CGSize(width: width, height: height)
+  }
+
+  private static func thumbnail(_ source: CGImageSource, maxPixels: Int) -> CGImage? {
     let options =
       [
         kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -265,28 +291,24 @@ enum PhotoLoader {
         kCGImageSourceShouldCacheImmediately: true,
         kCGImageSourceThumbnailMaxPixelSize: maxPixels,
       ] as CFDictionary
-    guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else {
-      return nil
-    }
-    return Image(decorative: thumbnail, scale: 1)
+    return CGImageSourceCreateThumbnailAtIndex(source, 0, options)
   }
 
-  /// Capped by iOS, not by taste. WidgetKit archives the rendered view for every timeline entry
-  /// and rejects the whole timeline with `WidgetArchiver.ArchivingError Code=2` once an entry is
-  /// too large; the widget then never reloads and freezes on one photo.
-  ///
-  /// Measured on a clean device carrying exactly one widget of each family: 640 passed on every
-  /// family three runs running, 660 passed, 700 and 900 and 1405 all failed. 640 keeps margin
-  /// below that cliff. A large widget is ~1146 px tall so it still upscales — that is the
-  /// platform's ceiling, not a preference. Small widgets are effectively native here.
-  static func maxPixels(for family: WidgetFamily) -> Int {
-    switch family {
-    case .systemSmall: return 640
-    case .systemMedium: return 640
-    case .systemLarge: return 640
-    case .systemExtraLarge: return 640
-    default: return 640
+  private static func cropped(_ image: CGImage, toAspectOf frame: CGSize) -> CGImage {
+    let width = CGFloat(image.width)
+    let height = CGFloat(image.height)
+    let aspect = frame.width / frame.height
+    var cropWidth = width
+    var cropHeight = height
+    if width / height > aspect {
+      cropWidth = (height * aspect).rounded(.down)
+    } else {
+      cropHeight = (width / aspect).rounded(.down)
     }
+    let origin = CGPoint(
+      x: ((width - cropWidth) / 2).rounded(.down), y: ((height - cropHeight) / 2).rounded(.down))
+    let rect = CGRect(origin: origin, size: CGSize(width: cropWidth, height: cropHeight))
+    return image.cropping(to: rect) ?? image
   }
 }
 
@@ -419,6 +441,7 @@ struct PhotoEntry: TimelineEntry {
   let position: Int
   let total: Int
   let settings: WidgetSettings
+  let frame: CGSize
 
   // what: tapping a widget opens the album it is showing, so its source is never a guess
   var deepLink: URL? {
@@ -431,18 +454,20 @@ struct PhotoProvider: AppIntentTimelineProvider {
   // what: WidgetKit will not reload faster than roughly every 5 minutes
   private static let minimumIntervalMinutes = 5
 
-  /// How many photos are scheduled ahead. The same archive limit bounds the whole timeline: at
-  /// 640 px, 24 entries passed repeatedly while 48 failed. 24 is a full day of rotation at the
-  /// hourly setting and two hours at the five-minute one, costing 1 and 12 reloads a day against
-  /// an allowance of roughly 40-70 — so coverage is never the binding constraint, entry size is.
-  private static func maxEntries(for family: WidgetFamily) -> Int {
-    switch family {
-    case .systemSmall: return 24
-    case .systemMedium: return 24
-    case .systemLarge: return 24
-    case .systemExtraLarge: return 16
-    default: return 24
-    }
+  // what: chronod rejected a timeline archive at 10 MiB on the simulator; the device drew the line higher
+  private static let archiveBudgetBytes = 6 * 1024 * 1024
+  private static let maxEntries = 48
+
+  struct Plan {
+    let entries: [PhotoEntry]
+    let archiveBytes: Int
+  }
+
+  private static func frame(in context: Context) -> CGSize {
+    let scale = (context.environmentVariants.displayScale ?? []).max() ?? 3
+    return CGSize(
+      width: (context.displaySize.width * scale).rounded(),
+      height: (context.displaySize.height * scale).rounded())
   }
 
   /// Stable across processes, unlike `String.hashValue`, which Swift seeds randomly per
@@ -480,18 +505,20 @@ struct PhotoProvider: AppIntentTimelineProvider {
       albumName: album?.name ?? "Frame",
       position: 0,
       total: album?.photos.count ?? 0,
-      settings: FrameStore.settings())
+      settings: FrameStore.settings(),
+      frame: Self.frame(in: context))
   }
 
   func snapshot(for configuration: SelectAlbumIntent, in context: Context) async -> PhotoEntry {
-    entries(for: configuration, family: context.family).first ?? placeholder(in: context)
+    plan(for: configuration, in: context).entries.first ?? placeholder(in: context)
   }
 
   func timeline(for configuration: SelectAlbumIntent, in context: Context) async -> Timeline<
     PhotoEntry
   > {
-    let built = entries(for: configuration, family: context.family)
-    recordStatus(built, configuration: configuration, family: context.family)
+    let plan = plan(for: configuration, in: context)
+    let built = plan.entries
+    recordStatus(plan, configuration: configuration, family: context.family)
     guard !built.isEmpty else {
       return Timeline(
         entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(3600)))
@@ -510,8 +537,9 @@ struct PhotoProvider: AppIntentTimelineProvider {
   }
 
   private func recordStatus(
-    _ built: [PhotoEntry], configuration: SelectAlbumIntent, family: WidgetFamily
+    _ plan: Plan, configuration: SelectAlbumIntent, family: WidgetFamily
   ) {
+    let built = plan.entries
     guard let first = built.first else { return }
     let name = Self.familyName(family)
     let albumId = first.albumId ?? ""
@@ -531,26 +559,30 @@ struct PhotoProvider: AppIntentTimelineProvider {
         "state": first.total == 0 ? (first.albumId == nil ? "noAlbum" : "noPhotos") : "ok",
         "photos": first.total,
         "entries": built.count,
-        "decodePixels": PhotoLoader.maxPixels(for: family),
+        "frameWidth": Int(first.frame.width),
+        "frameHeight": Int(first.frame.height),
+        "archiveBytes": plan.archiveBytes,
         "intervalMinutes": spacing,
         "firstEntryAt": first.date.timeIntervalSince1970 * 1000,
         "updatedAt": Date().timeIntervalSince1970 * 1000,
       ], key: "\(name)|\(albumId)|\(groupId)|\(configuration.shuffle)")
   }
 
-  private func entries(for configuration: SelectAlbumIntent, family: WidgetFamily) -> [PhotoEntry] {
+  private func plan(for configuration: SelectAlbumIntent, in context: Context) -> Plan {
     let settings = FrameStore.settings()
+    let frame = Self.frame(in: context)
     guard
       let album = FrameStore.resolve(
         albumId: configuration.album?.id, groupId: configuration.group?.id),
       !album.photos.isEmpty
     else {
-      return [
-        PhotoEntry(
-          date: Date(), fileName: nil, albumId: configuration.album?.id,
-          albumName: configuration.album?.name ?? "Frame",
-          position: 0, total: 0, settings: settings)
-      ]
+      return Plan(
+        entries: [
+          PhotoEntry(
+            date: Date(), fileName: nil, albumId: configuration.album?.id,
+            albumName: configuration.album?.name ?? "Frame",
+            position: 0, total: 0, settings: settings, frame: frame)
+        ], archiveBytes: 0)
     }
 
     let minutes = max(Self.minimumIntervalMinutes, settings.refreshMinutes)
@@ -563,7 +595,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
     let total = album.photos.count
     let firstSlot = Int(slot)
     var orders: [Int: [String]] = [:]
-    let wanted = Self.maxEntries(for: family)
+    let wanted = Self.maxEntries
     var built: [PhotoEntry] = []
     built.reserveCapacity(wanted)
 
@@ -586,9 +618,26 @@ struct PhotoProvider: AppIntentTimelineProvider {
           albumName: album.name,
           position: position,
           total: total,
-          settings: settings))
+          settings: settings,
+          frame: frame))
     }
-    return built
+    return Self.fitToBudget(built, frame: frame, fit: settings.contentMode == .fit)
+  }
+
+  private static func fitToBudget(_ candidates: [PhotoEntry], frame: CGSize, fit: Bool) -> Plan {
+    var measured: [String: Int] = [:]
+    var total = 0
+    var kept: [PhotoEntry] = []
+    for entry in candidates {
+      guard let name = entry.fileName else { continue }
+      let bytes =
+        measured[name] ?? (PhotoLoader.jpeg(fileName: name, frame: frame, fit: fit)?.count ?? 0)
+      measured[name] = bytes
+      if !kept.isEmpty, total + bytes > archiveBudgetBytes { break }
+      total += bytes
+      kept.append(entry)
+    }
+    return Plan(entries: kept, archiveBytes: total)
   }
 }
 
@@ -640,7 +689,7 @@ struct PhotoWidgetView: View {
   // what: one decode reused for both layers, so `fit` costs no extra memory
   @ViewBuilder private var backdrop: some View {
     if let image = PhotoLoader.image(
-      fileName: entry.fileName, maxPixels: PhotoLoader.maxPixels(for: family)),
+      fileName: entry.fileName, frame: entry.frame, fit: entry.settings.contentMode == .fit),
       renderingMode == .fullColor
     {
       if entry.settings.contentMode == .fit {

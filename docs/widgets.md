@@ -190,34 +190,51 @@ one was caused by a SpringBoard restart the test itself performed, and one match
 succeeded with 1 entries` in the extension's log, which is the snapshot path, not a timeline.
 Sample the pixels, keep your hands off the device, and read chronod rather than the extension.
 
-## The decode size is set by the archive, not by the screen
+## Sharpness: decode to the widget's own frame, hand WidgetKit a JPEG, spend a byte budget
 
-The native pixel sizes an iPhone 17 actually needs are 656 px (small), 1405 px (medium and large)
-and 1839 px (extra large). Frame cannot decode to those, because the archive ceiling above is
-reached first. The ceiling was found by bisection on a clean simulator carrying exactly one widget
-of each family, reading chronod directly (`log stream --process chronod`) rather than the
-extension's own log, which reports the placeholder path as a success and will happily lie to you:
+Three measured facts decide how sharp a widget can be, and none of them is documented by Apple.
+All three were found on a clean simulator carrying one widget of each family, reading chronod
+directly (`log stream --process chronod`), then checked against a `log collect` archive from a
+real iPhone 18 Pro.
 
-| decode px | entries | small | medium | large |
-|---|---|---|---|---|
-| 520 | 48 | pass | pass | pass |
-| 520 | 120 | pass | pass | pass |
-| 640 | 24 | pass | pass | pass |
-| 640 | 48 | fail | fail | fail |
-| 660 | 24 | pass | pass | pass |
-| 700 | 26 | fail | fail | fail |
-| 900 | 26 | fail | fail | fail |
-| 1405 | 26 | fail | fail | fail |
+1. **A timeline archive has a hard byte ceiling, and it is per device.** chronod writes the
+   archive and then rejects it: `on local reload: failed with too large timeline archive
+   11866984`. On the simulator 640 px × 20 entries (9,814,408 B) passed and × 21 (10,764,872 B)
+   failed — exactly 10 MiB. The same 640 × 24 timelines were **accepted** on the phone (zero
+   chronod errors across a three-hour archive, 8 widgets), so the phone draws the line higher.
+   Treat 10 MiB as the floor and budget well under it.
+2. **Each image has its own pixel cap, and it comes from the widget's size.**
+   `ArchivingError.imageTooLarge(size: (933, 1200), maximumSize: (1084.6, 986.0))` for a small
+   widget of 164.33 pt: 164.33 × 3 = 493 px native, and the cap is 2.2 × 493 wide by 2.0 × 493
+   tall. One family over its cap fails the whole batch for every family. Decoding to the frame
+   keeps every image under it by construction.
+3. **What the archive stores depends on the image's origin.** `Image(decorative: cgImage)` and
+   `Image(uiImage: UIImage(cgImage:))` both archive a lossless re-encode: 482 KB per entry at
+   640 px. A `UIImage(data:)` built from JPEG bytes archives those bytes as they are: 113 KB per
+   entry at 640 px, 279 KB at 1100 px. That 4× is what makes native-resolution widgets fit.
 
-Two models of this were tried and both were wrong: entry count does not drive the bytes (120 to 56
-entries moved the total 0.3%), and the bytes do not scale with decoded area either (an area model
-predicted 9.3 MB at 700 px where 14.0 MB was measured). Only the empirical table is trustworthy.
+So `PhotoLoader.jpeg` decodes each photo to the widget's native pixel frame
+(`context.displaySize` × `displayScale`, carried on the entry), crops to the frame's aspect for
+the fill layout, encodes at JPEG 0.9 and the view wraps it in `UIImage(data:)`. Nothing is decoded
+above the source, so a small photo is never upscaled at archive time. The provider then runs the
+same encode over the candidate entries, adds up the real bytes (once per distinct photo; the fit layout uses one image for both its
+blurred and sharp layers and WidgetKit stores it once, as the on-disk archives confirm) and stops at
+`archiveBudgetBytes` (6 MiB) or 48 entries. Entries are therefore per widget, per device and per
+album: a small widget on a low-entropy album schedules 48, a large widget on busy photos fewer.
+The record the extension writes carries the frame and the measured bytes, so Diagnostics shows
+what actually happened.
 
-**Shipped: 640 px, 24 entries (16 on extra large.)** That is a 23% linear sharpness gain over the
-520 px that shipped in build 10, with margin below the 660-700 px cliff. Small widgets are
-effectively native at 640 px; medium, large and extra large still upscale, and that is the
-platform's ceiling rather than a choice. `src/const/widgetPlan.ts` mirrors these numbers for the
-Diagnostics screen — change both together or the screen lies.
+Native pixel needs on an iPhone at @3x are about 493 px (small), 1049 × 493 (medium) and
+1049 × 1095 (large). Stored copies are downsampled to `WIDGET_THUMBNAIL_MAX_PIXELS` = 1600 on the
+long edge, which is what a portrait photo needs to fill a large or medium widget at native pixels
+(1049 wide → ~1350 tall). Photos imported before that change are 1200 px and fill a large widget
+at ~0.9× native until re-imported. An iPad extra-large widget wants ~1840 px and is the one frame
+still storage-limited.
+
+Two dead ends worth not repeating: a per-family pixel table (640 for every family) both starved
+large widgets at 56% of native and over-decoded small ones above what they can display; and
+`UIImage(contentsOfFile:)` / `UIImage(data:)` on the raw stored file fails the per-image cap on
+small widgets, because a 1200 px tall image is over 2.0 × 493.
 
 ## Rotation is entries, not reloads
 
