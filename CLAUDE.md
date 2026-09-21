@@ -79,8 +79,13 @@ tools/lints/              the commit gates
 
 ## Builds are LOCAL, and every build streams to a log file
 
-**Never run a cloud build.** No `eas build`, no remote queue — everything is built on this machine
-with `xcodebuild` / `expo run:ios`. A cloud build hides the log, which is the one thing worth having.
+**Never run a cloud build.** No `eas build`, no remote queue — everything is built on this machine.
+A cloud build hides the log, which is the one thing worth having.
+
+`bun run ios` is the normal path (prebuild + build + install + launch + Metro). **Everything is pinned
+to port 8082**, because the sister project holds 8081 and a second Metro there silently refuses to
+start — leaving the app on the dev-launcher "Searching for development servers…" screen. Use
+`bun run ios:device` for a physical device.
 
 ## Shell commands: always tee to a file
 

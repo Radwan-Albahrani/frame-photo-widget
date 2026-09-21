@@ -4,10 +4,10 @@
   "main": "expo-router/entry",
   "private": true,
   "scripts": {
-    "start": "expo start",
-    "dev": "expo start --dev-client",
+    "start": "expo start --port 8082",
+    "dev": "expo start --dev-client --port 8082",
     "prebuild": "expo prebuild",
-    "ios": "bun run prebuild && expo run:ios",
+    "ios": "bun run prebuild && expo run:ios --port 8082",
     "types:check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -22,7 +22,8 @@
     "hooks:install": "git config core.hooksPath .githooks",
     "db:generate": "drizzle-kit generate && bun run db:bundle",
     "db:bundle": "bun run scripts/bundleMigrations.ts",
-    "gates": "bun run types:check && bun run lint && bun run lint:silent:branch && bun run format && bun run test"
+    "gates": "bun run types:check && bun run lint && bun run lint:silent:branch && bun run format && bun run test",
+    "ios:device": "bun run prebuild && expo run:ios --device --port 8082"
   },
   "dependencies": {
     "@expo/ui": "~57.0.19",
