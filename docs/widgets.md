@@ -3,6 +3,23 @@
 Everything the Home Screen widget depends on, and the constraints that shaped it. Read this before
 touching `targets/widgets/`, `modules/frame-photo-store/` or `src/backend/api/widget/`.
 
+## Type-check the widget BEFORE a build — and use the right command
+
+`swiftc -parse` only checks **syntax**. It happily accepts code that cannot compile, which cost a
+full failed archive when `selection?.group?.id` (optional chaining onto an already-unwrapped
+`@IntentParameterDependency` value) sailed through `-parse` and only failed inside `xcodebuild`.
+
+The command that actually catches it:
+
+```bash
+xcrun swiftc -typecheck -parse-as-library \
+  -target arm64-apple-ios18.0 -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" \
+  targets/widgets/FrameWidgets.swift
+```
+
+`-parse-as-library` is required, otherwise `@main` trips
+`'main' attribute cannot be used in a module that contains top-level code`. Empty output means clean.
+
 ## The 30 MB ceiling is the whole design
 
 A WidgetKit extension is Jetsam-killed at **30 MB** (`EXC_RESOURCE RESOURCE_TYPE_MEMORY

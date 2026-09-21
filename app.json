@@ -38,7 +38,7 @@
           }
         ]
       },
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "plugins": [
       "expo-router",

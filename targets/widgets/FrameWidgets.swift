@@ -281,7 +281,7 @@ struct AlbumQuery: EntityQuery {
 
   func suggestedEntities() async throws -> [AlbumEntity] {
     let groups = FrameStore.groups()
-    let groupId = selection?.group?.id
+    let groupId = selection?.group.id
     return FrameStore.albums()
       .filter { groupId == nil || $0.groupId == groupId }
       .map { entity($0, groups: groups) }
