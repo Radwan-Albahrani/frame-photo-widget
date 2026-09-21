@@ -11,13 +11,18 @@
       "appleTeamId": "36MBFNUCBC",
       "supportsTablet": true,
       "entitlements": {
-        "com.apple.security.application-groups": ["group.com.lumen.frame"]
+        "com.apple.security.application-groups": [
+          "group.com.lumen.frame"
+        ]
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CADisableMinimumFrameDurationOnPhone": true,
         "NSPhotoLibraryUsageDescription": "Frame only reads the photos you pick yourself, to show them in your widgets. Nothing is uploaded and nothing else in your library is read.",
-        "CFBundleLocalizations": ["en", "ar"],
+        "CFBundleLocalizations": [
+          "en",
+          "ar"
+        ],
         "UIPrefersShowingLanguageSettings": true,
         "OPSQLite_AppGroup": "group.com.lumen.frame"
       },
@@ -29,15 +34,19 @@
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["1C8F.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "1C8F.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
-            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
           }
         ]
       },
-      "buildNumber": "14"
+      "buildNumber": "15"
     },
     "plugins": [
       "expo-router",
@@ -84,7 +93,9 @@
                   "bundleIdentifier": "com.lumen.frame.widget",
                   "targetName": "FrameWidgets",
                   "entitlements": {
-                    "com.apple.security.application-groups": ["group.com.lumen.frame"]
+                    "com.apple.security.application-groups": [
+                      "group.com.lumen.frame"
+                    ]
                   }
                 }
               ]
