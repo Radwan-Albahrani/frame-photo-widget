@@ -159,6 +159,21 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        <Section
+          title="Diagnostics"
+          footer={
+            <NativeText>
+              Exactly what your widgets are scheduled to do, and why they look the way they do.
+            </NativeText>
+          }
+        >
+          <NativeButton
+            label="How rotation works"
+            systemImage="chart.line.uptrend.xyaxis"
+            onPress={() => router.push("/diagnostics")}
+          />
+        </Section>
+
         <Section title="Storage">
           <LabeledContent label="Photo copies">
             <NativeText>{formatBytes(bytes)}</NativeText>

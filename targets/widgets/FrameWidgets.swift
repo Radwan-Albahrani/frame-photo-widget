@@ -256,17 +256,21 @@ enum PhotoLoader {
     return Image(decorative: thumbnail, scale: 1)
   }
 
-  /// Kept low on purpose. WidgetKit archives the rendered view for every timeline entry, and
-  /// chronod rejects the whole timeline over a size limit — measured on iPhone: 520px passed,
-  /// while 700px and 900px failed at 14.0 MB and 21.9 MB. A rejected timeline never reloads at
-  /// all, so the widget freezes on one photo; a slightly softer photo is the better trade.
+  /// Capped by iOS, not by taste. WidgetKit archives the rendered view for every timeline entry
+  /// and rejects the whole timeline with `WidgetArchiver.ArchivingError Code=2` once an entry is
+  /// too large; the widget then never reloads and freezes on one photo.
+  ///
+  /// Measured on a clean device carrying exactly one widget of each family: 640 passed on every
+  /// family three runs running, 660 passed, 700 and 900 and 1405 all failed. 640 keeps margin
+  /// below that cliff. A large widget is ~1146 px tall so it still upscales — that is the
+  /// platform's ceiling, not a preference. Small widgets are effectively native here.
   static func maxPixels(for family: WidgetFamily) -> Int {
     switch family {
-    case .systemSmall: return 520
-    case .systemMedium: return 520
-    case .systemLarge: return 520
-    case .systemExtraLarge: return 560
-    default: return 520
+    case .systemSmall: return 640
+    case .systemMedium: return 640
+    case .systemLarge: return 640
+    case .systemExtraLarge: return 640
+    default: return 640
     }
   }
 }
@@ -412,17 +416,17 @@ struct PhotoProvider: AppIntentTimelineProvider {
   // what: WidgetKit will not reload faster than roughly every 5 minutes
   private static let minimumIntervalMinutes = 5
 
-  /// WidgetKit archives the RENDERED view for every entry, not just the entry, so the cost
-  /// scales with the decoded image. chronod rejects a timeline archive over roughly 20 MB with
-  /// "too large timeline archive" and the widget then never reloads at all. Measured: 120 large
-  /// entries at 900px came to 21.9 MB. These counts keep every family near 12 MB.
+  /// How many photos are scheduled ahead. The same archive limit bounds the whole timeline: at
+  /// 640 px, 24 entries passed repeatedly while 48 failed. 24 is a full day of rotation at the
+  /// hourly setting and two hours at the five-minute one, costing 1 and 12 reloads a day against
+  /// an allowance of roughly 40-70 — so coverage is never the binding constraint, entry size is.
   private static func maxEntries(for family: WidgetFamily) -> Int {
     switch family {
-    case .systemSmall: return 120
-    case .systemMedium: return 72
-    case .systemLarge: return 56
-    case .systemExtraLarge: return 8
-    default: return 72
+    case .systemSmall: return 24
+    case .systemMedium: return 24
+    case .systemLarge: return 24
+    case .systemExtraLarge: return 16
+    default: return 24
     }
   }
 
