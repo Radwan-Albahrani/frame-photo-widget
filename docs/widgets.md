@@ -40,8 +40,8 @@ Three rules fall out of it, and all three are load-bearing:
    downsamples to 1200 px on the long edge (`WIDGET_THUMBNAIL_MAX_PIXELS`) before anything is
    written. The widget never sees an original file.
 
-`PhotoLoader.maxPixels(for:)` tightens this further per family, since a small widget never needs
-more than ~520 px.
+`PhotoLoader.maxPixels(for:)` sets the decode size, and it is bounded by the timeline archive
+rather than by memory — see **The decode size is set by the archive, not by the screen** below.
 
 ## The App Group is the only channel
 
@@ -162,28 +162,62 @@ entries each carrying a future `date`. **iOS then advances through those entries
 rendering each one at its date, with the app terminated and the extension not even running. Nothing
 in Frame's rotation path needs the app to be alive:
 
-- `PhotoProvider.entries(for:)` builds one entry per photo, spaced `refreshMinutes` apart, and keeps
-  going until the timeline covers at least `targetSpanSeconds` (6 hours) or `maxEntries` (120),
-  whichever comes first. A 5-minute interval therefore hands iOS ~72 pre-dated entries in one go.
-- Each entry holds only a **file name**, so a 120-entry timeline is a few KB.
-- When the last entry is reached, the `.after` policy makes WidgetKit ask the extension for a fresh
+- `PhotoProvider.entries(for:)` builds `maxEntries(for:)` entries — 24, or 16 on extra large —
+  spaced by the clamped `refreshMinutes`, each anchored to an absolute clock slot. At hourly that
+  is a full day handed to iOS in one go; at the 5-minute floor it is two hours.
+- Each entry holds only a **file name**, so the entry list itself is a few KB.
+- When the last entry is reached, the `.atEnd` policy makes WidgetKit ask the extension for a fresh
   timeline. That runs the *extension*, reading the App Group — still no app launch.
 
 `reloadAllTimelines()` is therefore only needed when the *data* changed (a photo added, an album
 renamed). Settings → **Update widgets now** exposes that manually, and it is the right thing to tap
 after importing photos if you do not want to wait.
 
-### Verified, not assumed (2026-09-21, iPhone 17 / iOS 27)
+### Verified, not assumed (2026-09-21, iOS 27, 640 px / 24 entries)
 
-With `refreshMinutes = 5`, the app **terminated** (`pgrep` confirmed only `FrameWidgets.appex`
-alive), the widget's mean RGB over its tile was sampled every 2 minutes:
+With `refreshMinutes = 5` and shuffle on, the app **terminated** for the whole run (`launchctl
+list | grep com.lumen.frame` returned nothing at every sample) and the widget tile's mean RGB
+sampled roughly every 70 seconds:
 
 ```
-T+0  (209,179,173)   T+2  same   T+4  same   T+6  (147,98,196)  <- rotated
+19:50:34  140-098-115   19:51:45  same   19:52:56  same   19:54:07  same
+19:55:18  136-101-114  <- rotated, on the 19:55 slot boundary
 ```
 
-The photo changed on schedule with no app process in existence. If a future change makes rotation
-depend on the app running, this is the check that catches it.
+The photo changed on the absolute five-minute slot with no app process in existence and nothing
+touched on the device. Two earlier "confirmations" of this were worthless and are worth naming:
+one was caused by a SpringBoard restart the test itself performed, and one matched `reload:
+succeeded with 1 entries` in the extension's log, which is the snapshot path, not a timeline.
+Sample the pixels, keep your hands off the device, and read chronod rather than the extension.
+
+## The decode size is set by the archive, not by the screen
+
+The native pixel sizes an iPhone 17 actually needs are 656 px (small), 1405 px (medium and large)
+and 1839 px (extra large). Frame cannot decode to those, because the archive ceiling above is
+reached first. The ceiling was found by bisection on a clean simulator carrying exactly one widget
+of each family, reading chronod directly (`log stream --process chronod`) rather than the
+extension's own log, which reports the placeholder path as a success and will happily lie to you:
+
+| decode px | entries | small | medium | large |
+|---|---|---|---|---|
+| 520 | 48 | pass | pass | pass |
+| 520 | 120 | pass | pass | pass |
+| 640 | 24 | pass | pass | pass |
+| 640 | 48 | fail | fail | fail |
+| 660 | 24 | pass | pass | pass |
+| 700 | 26 | fail | fail | fail |
+| 900 | 26 | fail | fail | fail |
+| 1405 | 26 | fail | fail | fail |
+
+Two models of this were tried and both were wrong: entry count does not drive the bytes (120 to 56
+entries moved the total 0.3%), and the bytes do not scale with decoded area either (an area model
+predicted 9.3 MB at 700 px where 14.0 MB was measured). Only the empirical table is trustworthy.
+
+**Shipped: 640 px, 24 entries (16 on extra large.)** That is a 23% linear sharpness gain over the
+520 px that shipped in build 10, with margin below the 660-700 px cliff. Small widgets are
+effectively native at 640 px; medium, large and extra large still upscale, and that is the
+platform's ceiling rather than a choice. `src/const/widgetPlan.ts` mirrors these numbers for the
+Diagnostics screen — change both together or the screen lies.
 
 ## Rotation is entries, not reloads
 
@@ -191,9 +225,9 @@ depend on the app running, this is the check that catches it.
 not the app — decides. Asking for a reload per photo would burn the budget in an hour and the
 widget would go stale for the rest of the day.
 
-So rotation is done *inside one timeline*: `PhotoProvider` builds up to 24 entries, one per photo,
-each dated `refreshMinutes` after the last. iOS walks those entries with no reload at all. The
-timeline's `.after` policy asks for a refill once the last entry is consumed.
+So rotation is done *inside one timeline*: `PhotoProvider` builds up to 24 entries, each dated
+`refreshMinutes` after the last. iOS walks those entries with no reload at all. The timeline's
+`.atEnd` policy asks for a refill once the last entry is consumed.
 
 `WidgetCenter.shared.reloadAllTimelines()` (via `reloadWidgets()`) is called only when the *data*
 changes: a photo added or removed, an album renamed or deleted, a setting changed.
@@ -234,20 +268,15 @@ Rotation is carried entirely by pre-built timeline entries, so it does not need 
 wake up and it does not spend the reload budget. Two values decide how long it survives without
 iOS asking for anything:
 
-- **`maxEntries(for:)` is capped by ARCHIVE SIZE, not by time.** WidgetKit archives the *rendered
-  view* for every entry, so the cost scales with the decoded image, not with the entry struct.
-  chronod refuses a timeline over roughly 20 MB — `reload: failed with too large timeline archive
-  21889640` / `CHSErrorDomain Code=1050` — and the widget then never reloads at all and sits on the
-  system's grey placeholder forever. Measured: 120 large entries at 900 px came to 21.9 MB and
-  failed every time, while the small family at 520 px succeeded with the same 120 entries. The
-  counts (120 / 72 / 56 / 32 by family) keep every archive near 12 MB.
-
-  That is why the old 6 h span looked safe: it was small enough to archive. Going long is right,
-  but the ceiling is bytes.
+- **`maxEntries(for:)` and `maxPixels(for:)` are capped by ARCHIVE SIZE, not by time or memory.**
+  WidgetKit archives the *rendered view* for every entry, so the cost scales with the decoded
+  image. chronod refuses a timeline over roughly 20 MB — `reload: failed with too large timeline
+  archive 21889640` / `CHSErrorDomain Code=1050` — and the widget then never reloads at all and
+  sits on the system's grey placeholder forever.
 
   The reload budget is roughly 40-70 a day and is spent only on *reloads*, never on advancing
-  through entries that already exist. At these counts a widget asks for a new timeline between
-  0.01 and 9 times a day, so rotation costs almost none of it.
+  through entries that already exist. At 24 entries a widget asks for a new timeline once a day at
+  hourly rotation and 12 times a day at the 5-minute floor, so rotation costs almost none of it.
 - `.atEnd` — WidgetKit asks for the next timeline as soon as the final entry is consumed. `.after(date)`
   defers that request to a timestamp, which iOS is free to honour late on a device where the app is
   never launched.
