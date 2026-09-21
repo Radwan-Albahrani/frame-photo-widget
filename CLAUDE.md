@@ -63,6 +63,11 @@ tools/lints/              the commit gates
 
 **Cross-feature imports go through `<feature>.service.ts`.** Services are classes of static members.
 
+## Builds are LOCAL, and every build streams to a log file
+
+**Never run a cloud build.** No `eas build`, no remote queue — everything is built on this machine
+with `xcodebuild` / `expo run:ios`. A cloud build hides the log, which is the one thing worth having.
+
 ## Shell commands: always tee to a file
 
 Every long-running command streams to a log file and you watch the FILE, never the terminal:
