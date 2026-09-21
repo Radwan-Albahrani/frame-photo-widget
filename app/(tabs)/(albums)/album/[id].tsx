@@ -5,13 +5,12 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-rou
 import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, View, useWindowDimensions } from "react-native";
-import { Button as NativeButton, ConfirmationDialog, Host } from "@expo/ui/swift-ui";
 import { AlbumsService } from "@backend/api/albums/albums.service";
 import { PhotosService } from "@backend/api/photos/photos.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import type { PhotoRow } from "@backend/core/db/schema";
 import { photoUri } from "@native/photoStore";
-import { EmptyState, Text } from "@ui/components";
+import { ConfirmDialog, EmptyState, Text } from "@ui/components";
 import { colors, radius, space } from "@ui/theme";
 
 export default function AlbumScreen() {
@@ -162,21 +161,14 @@ export default function AlbumScreen() {
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
 
-      <Host style={{ position: "absolute", width: 0, height: 0 }}>
-        <ConfirmationDialog
-          title={`Delete "${name}"?`}
-          isPresented={confirmingDelete}
-          onIsPresentedChange={setConfirmingDelete}
-        >
-          <ConfirmationDialog.Actions>
-            <NativeButton role="destructive" label="Delete" onPress={() => void deleteAlbum()} />
-            <NativeButton role="cancel" label="Cancel" />
-          </ConfirmationDialog.Actions>
-          <ConfirmationDialog.Message>
-            The album and its copies are removed. Your originals in Photos are untouched.
-          </ConfirmationDialog.Message>
-        </ConfirmationDialog>
-      </Host>
+      <ConfirmDialog
+        visible={confirmingDelete}
+        title={`Delete "${name}"?`}
+        message="The album and its copies are removed. Your originals in Photos are untouched."
+        confirmLabel="Delete"
+        onVisibleChange={setConfirmingDelete}
+        onConfirm={() => void deleteAlbum()}
+      />
     </>
   );
 }

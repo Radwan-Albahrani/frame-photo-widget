@@ -53,9 +53,6 @@
       "preset": "recommended",
       "complexity": {
         "noStaticOnlyClass": "off"
-      },
-      "a11y": {
-        "useValidAriaRole": "off"
       }
     }
   },
