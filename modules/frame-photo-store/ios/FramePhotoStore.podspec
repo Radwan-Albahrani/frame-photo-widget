@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.description    = 'Writes widget-sized JPEGs into the shared App Group container and mirrors the widget snapshot.'
   s.author         = 'Frame'
   s.homepage       = 'https://expo.dev'
-  s.platforms      = { :ios => '15.1' }
+  s.platforms      = { :ios => '18.0' }
   s.source         = { git: '' }
   s.static_framework = true
 
