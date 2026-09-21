@@ -234,15 +234,20 @@ Rotation is carried entirely by pre-built timeline entries, so it does not need 
 wake up and it does not spend the reload budget. Two values decide how long it survives without
 iOS asking for anything:
 
-- `targetSpanSeconds` (24 h) — how far ahead entries are scheduled; Apple advises against queueing
-  more than a day at a time. At `maxEntries = 120` that is 25 entries hourly (25 h of rotation) and
-  120 entries at five minutes (10 h). It was 6 h, which meant an hourly widget ran out of entries
-  after six and then sat on the last photo until something reloaded it — exactly the "it only
-  changed when I opened the app" symptom.
+- **`maxEntries(for:)` is capped by ARCHIVE SIZE, not by time.** WidgetKit archives the *rendered
+  view* for every entry, so the cost scales with the decoded image, not with the entry struct.
+  chronod refuses a timeline over roughly 20 MB — `reload: failed with too large timeline archive
+  21889640` / `CHSErrorDomain Code=1050` — and the widget then never reloads at all and sits on the
+  system's grey placeholder forever. Measured: 120 large entries at 900 px came to 21.9 MB and
+  failed every time, while the small family at 520 px succeeded with the same 120 entries. The
+  counts (120 / 72 / 56 / 32 by family) keep every archive near 12 MB.
+
+  That is why the old 6 h span looked safe: it was small enough to archive. Going long is right,
+  but the ceiling is bytes.
 
   The reload budget is roughly 40-70 a day and is spent only on *reloads*, never on advancing
-  through entries that already exist. At these spans the widget asks for a new timeline between
-  0.04 and 2.4 times a day, so rotation costs almost none of it.
+  through entries that already exist. At these counts a widget asks for a new timeline between
+  0.01 and 9 times a day, so rotation costs almost none of it.
 - `.atEnd` — WidgetKit asks for the next timeline as soon as the final entry is consumed. `.after(date)`
   defers that request to a timestamp, which iOS is free to honour late on a device where the app is
   never launched.

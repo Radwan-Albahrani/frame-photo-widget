@@ -405,10 +405,22 @@ struct PhotoEntry: TimelineEntry {
 }
 
 struct PhotoProvider: AppIntentTimelineProvider {
-  // what: entries are strings, so a long timeline costs bytes and needs no reload to advance
-  private static let maxEntries = 120
   // what: WidgetKit will not reload faster than roughly every 5 minutes
   private static let minimumIntervalMinutes = 5
+
+  /// WidgetKit archives the RENDERED view for every entry, not just the entry, so the cost
+  /// scales with the decoded image. chronod rejects a timeline archive over roughly 20 MB with
+  /// "too large timeline archive" and the widget then never reloads at all. Measured: 120 large
+  /// entries at 900px came to 21.9 MB. These counts keep every family near 12 MB.
+  private static func maxEntries(for family: WidgetFamily) -> Int {
+    switch family {
+    case .systemSmall: return 120
+    case .systemMedium: return 72
+    case .systemLarge: return 56
+    case .systemExtraLarge: return 32
+    default: return 72
+    }
+  }
 
   /// Stable across processes, unlike `String.hashValue`, which Swift seeds randomly per
   /// launch — that made every relaunch of the extension reshuffle and jump the rotation.
@@ -449,13 +461,13 @@ struct PhotoProvider: AppIntentTimelineProvider {
   }
 
   func snapshot(for configuration: SelectAlbumIntent, in context: Context) async -> PhotoEntry {
-    entries(for: configuration).first ?? placeholder(in: context)
+    entries(for: configuration, family: context.family).first ?? placeholder(in: context)
   }
 
   func timeline(for configuration: SelectAlbumIntent, in context: Context) async -> Timeline<
     PhotoEntry
   > {
-    let built = entries(for: configuration)
+    let built = entries(for: configuration, family: context.family)
     guard !built.isEmpty else {
       return Timeline(
         entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(3600)))
@@ -463,7 +475,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
     return Timeline(entries: built, policy: .atEnd)
   }
 
-  private func entries(for configuration: SelectAlbumIntent) -> [PhotoEntry] {
+  private func entries(for configuration: SelectAlbumIntent, family: WidgetFamily) -> [PhotoEntry] {
     let settings = FrameStore.settings()
     guard
       let album = FrameStore.resolve(
@@ -488,10 +500,11 @@ struct PhotoProvider: AppIntentTimelineProvider {
     let total = album.photos.count
     let firstSlot = Int(slot)
     var orders: [Int: [String]] = [:]
+    let wanted = Self.maxEntries(for: family)
     var built: [PhotoEntry] = []
-    built.reserveCapacity(Self.maxEntries)
+    built.reserveCapacity(wanted)
 
-    for index in 0..<Self.maxEntries {
+    for index in 0..<wanted {
       let absolute = firstSlot + index
       let cycle = Int(floor(Double(absolute) / Double(total)))
       let position = ((absolute % total) + total) % total
