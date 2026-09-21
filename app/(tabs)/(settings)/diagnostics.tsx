@@ -56,7 +56,7 @@ function WidgetSection({ widget, now }: { widget: WidgetReport; now: number }) {
       title={`${widget.albumName} · ${familyLabel(widget.family)}`}
       footer={
         <NativeText>
-          {`Last reported ${agoFrom(widget.updatedAt, now)}, by iOS, with Frame closed.`}
+          {`Last reported ${agoFrom(widget.updatedAt, now)}, by iOS, with Frame closed. When this batch runs out iOS asks for the next one by itself — you do not need to open Frame then or ever.`}
         </NativeText>
       }
     >
@@ -79,7 +79,7 @@ function WidgetSection({ widget, now }: { widget: WidgetReport; now: number }) {
       <LabeledContent label="Next photo">
         <NativeText>{dayAndClockAt(nextChangeAfter(widget, now), now)}</NativeText>
       </LabeledContent>
-      <LabeledContent label="Scheduled through">
+      <LabeledContent label="Photos ready until">
         <NativeText>{dayAndClockAt(coversUntil(widget), now)}</NativeText>
       </LabeledContent>
       <LabeledContent label="Photos queued">
