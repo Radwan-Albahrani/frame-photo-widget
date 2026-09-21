@@ -17,7 +17,13 @@ enum DataSourceKind: String {
 struct Album: Identifiable, Hashable {
   let id: String
   let name: String
+  let groupId: String?
   let photos: [String]
+}
+
+struct PhotoGroup: Identifiable, Hashable {
+  let id: String
+  let name: String
 }
 
 struct WidgetSettings: Codable {
@@ -69,51 +75,86 @@ enum FrameStore {
     }
   }
 
-  static func album(id: String?) -> Album? {
+  static func groups() -> [PhotoGroup] {
+    switch sourceKind() {
+    case .snapshot: return SnapshotSource.groups()
+    case .sqlite: return SQLiteSource.groups()
+    }
+  }
+
+  /// A specific album wins; otherwise a whole group is flattened into one rotating set.
+  static func resolve(albumId: String?, groupId: String?) -> Album? {
     let all = albums()
-    guard let id else { return all.first }
-    return all.first(where: { $0.id == id }) ?? all.first
+    if let albumId, let match = all.first(where: { $0.id == albumId }) { return match }
+    if let groupId {
+      let members = all.filter { $0.groupId == groupId }
+      if !members.isEmpty {
+        let name = groups().first(where: { $0.id == groupId })?.name ?? ""
+        return Album(
+          id: groupId, name: name, groupId: groupId,
+          photos: members.flatMap { $0.photos })
+      }
+    }
+    return all.first
   }
 }
 
 private struct SnapshotAlbum: Codable {
   let id: String
   let name: String
+  let groupId: String?
   let photos: [String]
+}
+
+private struct SnapshotGroup: Codable {
+  let id: String
+  let name: String
 }
 
 private struct SnapshotPayload: Codable {
   let albums: [SnapshotAlbum]
+  let groups: [SnapshotGroup]?
   let generatedAt: Double?
 }
 
 enum SnapshotSource {
-  static func albums() -> [Album] {
+  private static func payload() -> SnapshotPayload? {
     guard let raw = FrameStore.groupDefaults()?.string(forKey: FrameStore.snapshotKey),
-      let data = raw.data(using: .utf8),
-      let payload = try? JSONDecoder().decode(SnapshotPayload.self, from: data)
-    else { return [] }
-    return payload.albums.map { Album(id: $0.id, name: $0.name, photos: $0.photos) }
+      let data = raw.data(using: .utf8)
+    else { return nil }
+    return try? JSONDecoder().decode(SnapshotPayload.self, from: data)
+  }
+
+  static func albums() -> [Album] {
+    (payload()?.albums ?? []).map {
+      Album(id: $0.id, name: $0.name, groupId: $0.groupId, photos: $0.photos)
+    }
+  }
+
+  static func groups() -> [PhotoGroup] {
+    (payload()?.groups ?? []).map { PhotoGroup(id: $0.id, name: $0.name) }
   }
 }
 
 enum SQLiteSource {
-  private static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-
-  static func albums() -> [Album] {
-    guard let path = FrameStore.containerURL()?.appendingPathComponent(FrameStore.databaseName).path
-    else { return [] }
-    guard FileManager.default.fileExists(atPath: path) else { return [] }
-
+  private static func openDatabase() -> OpaquePointer? {
+    guard let path = FrameStore.containerURL()?.appendingPathComponent(FrameStore.databaseName).path,
+      FileManager.default.fileExists(atPath: path)
+    else { return nil }
     var handle: OpaquePointer?
     guard sqlite3_open_v2(path, &handle, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
       sqlite3_close(handle)
-      return []
+      return nil
     }
+    return handle
+  }
+
+  static func albums() -> [Album] {
+    guard let handle = openDatabase() else { return [] }
     defer { sqlite3_close(handle) }
 
     let sql = """
-      SELECT a.id, a.name, p.file_name
+      SELECT a.id, a.name, a.group_id, p.file_name
       FROM albums a
       LEFT JOIN photos p ON p.album_id = a.id
       ORDER BY a.sort_order ASC, a.created_at ASC, p.sort_order ASC, p.created_at ASC
@@ -124,6 +165,7 @@ enum SQLiteSource {
 
     var order: [String] = []
     var names: [String: String] = [:]
+    var groupIds: [String: String?] = [:]
     var grouped: [String: [String]] = [:]
 
     while sqlite3_step(statement) == SQLITE_ROW {
@@ -132,14 +174,37 @@ enum SQLiteSource {
       if names[id] == nil {
         order.append(id)
         names[id] = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
+        groupIds[id] = sqlite3_column_text(statement, 2).map { String(cString: $0) }
         grouped[id] = []
       }
-      if let fileText = sqlite3_column_text(statement, 2) {
+      if let fileText = sqlite3_column_text(statement, 3) {
         grouped[id]?.append(String(cString: fileText))
       }
     }
 
-    return order.map { Album(id: $0, name: names[$0] ?? "", photos: grouped[$0] ?? []) }
+    return order.map {
+      Album(
+        id: $0, name: names[$0] ?? "", groupId: groupIds[$0] ?? nil,
+        photos: grouped[$0] ?? [])
+    }
+  }
+
+  static func groups() -> [PhotoGroup] {
+    guard let handle = openDatabase() else { return [] }
+    defer { sqlite3_close(handle) }
+
+    let sql = "SELECT id, name FROM album_groups ORDER BY sort_order ASC, created_at ASC"
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
+    defer { sqlite3_finalize(statement) }
+
+    var result: [PhotoGroup] = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+      guard let idText = sqlite3_column_text(statement, 0) else { continue }
+      let name = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
+      result.append(PhotoGroup(id: String(cString: idText), name: name))
+    }
+    return result
   }
 }
 
@@ -209,19 +274,62 @@ struct AlbumQuery: EntityQuery {
   }
 }
 
+struct GroupEntity: AppEntity {
+  let id: String
+  let name: String
+  let albumCount: Int
+  let photoCount: Int
+
+  static var typeDisplayRepresentation: TypeDisplayRepresentation = "Group"
+  static var defaultQuery = GroupQuery()
+
+  var displayRepresentation: DisplayRepresentation {
+    let albums = albumCount == 1 ? "1 album" : "\(albumCount) albums"
+    let photos = photoCount == 1 ? "1 photo" : "\(photoCount) photos"
+    return DisplayRepresentation(title: "\(name)", subtitle: "\(albums) · \(photos)")
+  }
+}
+
+struct GroupQuery: EntityQuery {
+  private func all() -> [GroupEntity] {
+    let albums = FrameStore.albums()
+    return FrameStore.groups().map { group in
+      let members = albums.filter { $0.groupId == group.id }
+      return GroupEntity(
+        id: group.id,
+        name: group.name,
+        albumCount: members.count,
+        photoCount: members.reduce(0) { $0 + $1.photos.count })
+    }
+  }
+
+  func entities(for identifiers: [String]) async throws -> [GroupEntity] {
+    all().filter { identifiers.contains($0.id) }
+  }
+
+  func suggestedEntities() async throws -> [GroupEntity] {
+    all()
+  }
+}
+
 struct SelectAlbumIntent: WidgetConfigurationIntent {
-  static var title: LocalizedStringResource = "Choose Album"
-  static var description = IntentDescription("Pick which album this widget shows.")
+  static var title: LocalizedStringResource = "Choose Photos"
+  static var description = IntentDescription(
+    "Show one album, or every album in a group.")
 
   @Parameter(title: "Album")
   var album: AlbumEntity?
+
+  @Parameter(title: "Group")
+  var group: GroupEntity?
 
   @Parameter(title: "Shuffle", default: false)
   var shuffle: Bool
 
   init() {}
-  init(album: AlbumEntity?, shuffle: Bool) {
+  init(album: AlbumEntity?, group: GroupEntity?, shuffle: Bool) {
     self.album = album
+    self.group = group
     self.shuffle = shuffle
   }
 }
@@ -243,7 +351,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
   private static let targetSpanSeconds: TimeInterval = 6 * 3600
 
   func placeholder(in context: Context) -> PhotoEntry {
-    let album = FrameStore.albums().first
+    let album = FrameStore.resolve(albumId: nil, groupId: nil)
     return PhotoEntry(
       date: Date(),
       fileName: album?.photos.first,
@@ -269,7 +377,11 @@ struct PhotoProvider: AppIntentTimelineProvider {
 
   private func entries(for configuration: SelectAlbumIntent) -> [PhotoEntry] {
     let settings = FrameStore.settings()
-    guard let album = FrameStore.album(id: configuration.album?.id), !album.photos.isEmpty else {
+    guard
+      let album = FrameStore.resolve(
+        albumId: configuration.album?.id, groupId: configuration.group?.id),
+      !album.photos.isEmpty
+    else {
       return [
         PhotoEntry(
           date: Date(), fileName: nil, albumName: configuration.album?.name ?? "Frame",
@@ -415,7 +527,7 @@ struct PhotoWidget: Widget {
       PhotoWidgetView(entry: entry)
     }
     .configurationDisplayName("Photo")
-    .description("Show photos from one of your albums.")
+    .description("Show photos from an album, or a whole group of albums.")
     .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
     .contentMarginsDisabled()
   }

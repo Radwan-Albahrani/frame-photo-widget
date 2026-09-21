@@ -15,6 +15,7 @@ export class AlbumsService {
         id: albums.id,
         name: albums.name,
         coverPhotoId: albums.coverPhotoId,
+        groupId: albums.groupId,
         sortOrder: albums.sortOrder,
         createdAt: albums.createdAt,
         updatedAt: albums.updatedAt,
@@ -50,6 +51,7 @@ export class AlbumsService {
       id: createId(),
       name: name.trim().length > 0 ? name.trim() : "Untitled",
       coverPhotoId: null,
+      groupId: null,
       sortOrder: (highest?.value ?? -1) + 1,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -72,6 +74,10 @@ export class AlbumsService {
       .set({ coverPhotoId: photoId, updatedAt: now() })
       .where(eq(albums.id, id))
       .run();
+  }
+
+  static async setGroup(id: string, groupId: string | null): Promise<void> {
+    await db.update(albums).set({ groupId, updatedAt: now() }).where(eq(albums.id, id)).run();
   }
 
   static async remove(id: string): Promise<void> {

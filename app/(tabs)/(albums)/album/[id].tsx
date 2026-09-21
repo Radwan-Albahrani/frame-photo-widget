@@ -4,13 +4,15 @@ import * as ImagePicker from "expo-image-picker";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, ScrollView, View, useWindowDimensions } from "react-native";
 import { AlbumsService } from "@backend/api/albums/albums.service";
+import { GroupsService } from "@backend/api/groups/groups.service";
 import { PhotosService } from "@backend/api/photos/photos.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
-import type { PhotoRow } from "@backend/core/db/schema";
+import type { AlbumGroupRow, PhotoRow } from "@backend/core/db/schema";
 import { photoUri } from "@native/photoStore";
 import { ConfirmDialog, EmptyState, Text } from "@ui/components";
+import { ReorderableGrid } from "@ui/components/media/ReorderableGrid";
 import { colors, radius, space } from "@ui/theme";
 
 export default function AlbumScreen() {
@@ -23,6 +25,8 @@ export default function AlbumScreen() {
   const [selected, setSelected] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [groups, setGroups] = useState<AlbumGroupRow[]>([]);
+  const [groupId, setGroupId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const album = await AlbumsService.byId(id);
@@ -31,6 +35,8 @@ export default function AlbumScreen() {
       return;
     }
     setName(album.name);
+    setGroupId(album.groupId);
+    setGroups(await GroupsService.list());
     setPhotos(await PhotosService.listByAlbum(id));
   }, [id, router]);
 
@@ -89,6 +95,25 @@ export default function AlbumScreen() {
     [id, reload]
   );
 
+  const moveToGroup = useCallback(
+    async (nextGroupId: string | null) => {
+      await AlbumsService.setGroup(id, nextGroupId);
+      setGroupId(nextGroupId);
+      Haptics.selectionAsync();
+    },
+    [id]
+  );
+
+  const applyOrder = useCallback(
+    async (orderedIds: string[]) => {
+      await PhotosService.reorder(id, orderedIds);
+      setPhotos(await PhotosService.listByAlbum(id));
+      await WidgetService.sync();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    },
+    [id]
+  );
+
   const deleteAlbum = useCallback(async () => {
     await PhotosService.removeAlbumPhotos(id);
     await AlbumsService.remove(id);
@@ -97,22 +122,23 @@ export default function AlbumScreen() {
   }, [id, router]);
 
   const columns = 3;
-  const gutter = 2;
-  const cell = (width - gutter * (columns - 1)) / columns;
+  const gutter = 6;
+  const cell = (width - gutter * (columns + 1)) / columns;
   const selecting = selected.length > 0;
   const onlySelected = selected.length === 1 ? selected[0] : null;
 
   return (
     <>
-      <FlatList
+      <ScrollView
         style={{ flex: 1 }}
         contentInsetAdjustmentBehavior="automatic"
-        data={photos}
-        keyExtractor={(item) => item.id}
-        numColumns={columns}
-        contentContainerStyle={{ gap: gutter, paddingBottom: space.xxxl * 3 }}
-        columnWrapperStyle={{ gap: gutter }}
-        ListEmptyComponent={
+        contentContainerStyle={{
+          paddingHorizontal: gutter,
+          paddingBottom: space.xxxl * 3,
+          alignItems: "center",
+        }}
+      >
+        {photos.length === 0 ? (
           <View style={{ paddingTop: space.xxxl * 2 }}>
             <EmptyState
               icon="photo.on.rectangle.angled"
@@ -122,23 +148,36 @@ export default function AlbumScreen() {
               onAction={() => void addPhotos()}
             />
           </View>
-        }
-        renderItem={({ item }) => (
-          <PhotoCell
-            photo={item}
-            size={cell}
-            selected={selected.includes(item.id)}
-            selecting={selecting}
-            onPress={() =>
-              setSelected((current) =>
-                current.includes(item.id)
-                  ? current.filter((value) => value !== item.id)
-                  : [...current, item.id]
-              )
-            }
-          />
+        ) : (
+          <>
+            <Text variant="footnote" tone="muted" center style={{ paddingVertical: space.sm }}>
+              Tap to select. Touch and hold to drag a photo into a new order.
+            </Text>
+            <ReorderableGrid
+              items={photos}
+              numColumns={columns}
+              cellSize={cell}
+              gap={gutter}
+              onReorder={(orderedIds) => void applyOrder(orderedIds)}
+              onPress={(photo) =>
+                setSelected((current) =>
+                  current.includes(photo.id)
+                    ? current.filter((value) => value !== photo.id)
+                    : [...current, photo.id]
+                )
+              }
+              renderItem={(photo) => (
+                <PhotoCell
+                  photo={photo}
+                  size={cell}
+                  selected={selected.includes(photo.id)}
+                  selecting={selecting}
+                />
+              )}
+            />
+          </>
         )}
-      />
+      </ScrollView>
 
       {importing ? (
         <View
@@ -200,6 +239,23 @@ export default function AlbumScreen() {
           >
             Rename
           </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.Menu icon="folder" title="Move to group">
+            <Stack.Toolbar.MenuAction
+              icon={groupId === null ? "checkmark" : "tray"}
+              onPress={() => void moveToGroup(null)}
+            >
+              No group
+            </Stack.Toolbar.MenuAction>
+            {groups.map((group) => (
+              <Stack.Toolbar.MenuAction
+                key={group.id}
+                icon={groupId === group.id ? "checkmark" : "folder"}
+                onPress={() => void moveToGroup(group.id)}
+              >
+                {group.name}
+              </Stack.Toolbar.MenuAction>
+            ))}
+          </Stack.Toolbar.Menu>
           <Stack.Toolbar.MenuAction
             icon="trash"
             destructive
@@ -227,17 +283,15 @@ function PhotoCell({
   size,
   selected,
   selecting,
-  onPress,
 }: {
   photo: PhotoRow;
   size: number;
   selected: boolean;
   selecting: boolean;
-  onPress: () => void;
 }) {
   const uri = photoUri(photo.fileName);
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={{ width: size, height: size }}>
+    <View style={{ width: size, height: size, borderRadius: radius.sm, overflow: "hidden" }}>
       {uri === null ? null : (
         <Image
           source={{ uri }}
@@ -264,6 +318,6 @@ function PhotoCell({
           <SymbolView name="checkmark" tintColor={colors.accentInk} size={12} />
         </View>
       ) : null}
-    </Pressable>
+    </View>
   );
 }
