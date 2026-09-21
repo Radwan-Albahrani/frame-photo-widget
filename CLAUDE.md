@@ -54,6 +54,13 @@ The things that will cost you a day if you rediscover them:
 - `import SQLite3` autolinks in the extension (the SDK modulemap carries `link "sqlite3"`), so the
   direct-SQLite source needs no extra framework wiring.
 
+## Native UI — read `docs/native-ui.md` before touching a screen
+
+Use the real native component, never a replica: `NativeTabs`, `Stack.Screen.Title`, `Stack.Toolbar`,
+`@expo/ui/swift-ui` Form rows. Two traps live in that doc: a **bare string** in an `@expo/ui`
+`ReactNode` slot crashes the app on launch with a `RawText` exception, and changing
+`userInterfaceStyle` needs a **prebuild**, not just an `app.json` edit.
+
 ## Where things live
 
 ```

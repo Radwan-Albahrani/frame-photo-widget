@@ -1,8 +1,9 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { colors } from "@ui/theme";
 
 export default function TabsLayout() {
   return (
-    <NativeTabs minimizeBehavior="onScrollDown">
+    <NativeTabs minimizeBehavior="onScrollDown" tintColor={colors.accent}>
       <NativeTabs.Trigger name="(albums)">
         <NativeTabs.Trigger.Icon
           sf={{ default: "rectangle.stack", selected: "rectangle.stack.fill" }}

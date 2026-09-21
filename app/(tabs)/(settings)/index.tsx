@@ -112,7 +112,10 @@ export default function SettingsScreen() {
             </LabeledContent>
           </Section>
 
-          <Section title="Widget data source" footer={SOURCE_FOOTER[settings.widgetSource]}>
+          <Section
+            title="Widget data source"
+            footer={<NativeText>{SOURCE_FOOTER[settings.widgetSource]}</NativeText>}
+          >
             <Picker
               label="Read photos from"
               selection={settings.widgetSource}
@@ -124,7 +127,13 @@ export default function SettingsScreen() {
             </Picker>
           </Section>
 
-          <Section footer="No ads, no subscriptions, no limits. Your photos never leave this device.">
+          <Section
+            footer={
+              <NativeText>
+                No ads, no subscriptions, no limits. Your photos never leave this device.
+              </NativeText>
+            }
+          >
             <LabeledContent label="Frame">
               <NativeText>Free, forever</NativeText>
             </LabeledContent>

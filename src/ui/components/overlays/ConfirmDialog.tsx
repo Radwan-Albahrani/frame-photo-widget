@@ -1,4 +1,4 @@
-import { Button, ConfirmationDialog, Host } from "@expo/ui/swift-ui";
+import { Button, ConfirmationDialog, Host, Text } from "@expo/ui/swift-ui";
 
 const DESTRUCTIVE = "destructive" as const;
 const CANCEL = "cancel" as const;
@@ -27,7 +27,9 @@ export function ConfirmDialog({
           <Button role={DESTRUCTIVE} label={confirmLabel} onPress={onConfirm} />
           <Button role={CANCEL} label="Cancel" />
         </ConfirmationDialog.Actions>
-        <ConfirmationDialog.Message>{message}</ConfirmationDialog.Message>
+        <ConfirmationDialog.Message>
+          <Text>{message}</Text>
+        </ConfirmationDialog.Message>
       </ConfirmationDialog>
     </Host>
   );
