@@ -57,11 +57,14 @@ describe("commit message lint", () => {
   });
 
   it("holds the branch's own history to the rule", () => {
-    const subjects = execFileSync("git", ["log", "--pretty=%s", "origin/main..HEAD"], {
-      encoding: "utf8",
-    })
-      .split("\n")
-      .filter((line) => line.length > 0);
+    const log = (range: string) =>
+      execFileSync("git", ["log", "--pretty=%s", range], { encoding: "utf8" })
+        .split("\n")
+        .filter((line) => line.length > 0);
+
+    const branchOnly = log("origin/main..HEAD");
+    const subjects = branchOnly.length > 0 ? branchOnly : log("-25");
+
     expect(subjects.length).toBeGreaterThan(0);
     expect(subjects.filter((subject) => checkCommitSubject(subject).length > 0)).toEqual([]);
   });
