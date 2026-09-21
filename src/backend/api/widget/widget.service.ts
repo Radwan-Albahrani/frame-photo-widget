@@ -3,8 +3,13 @@ import { GroupsService } from "@backend/api/groups/groups.service";
 import { PhotosService } from "@backend/api/photos/photos.service";
 import { SettingsService } from "@backend/api/settings/settings.service";
 import { toSnapshot, type WidgetSnapshot } from "@backend/api/widget/snapshot";
-import { WIDGET_SETTINGS_KEY, WIDGET_SNAPSHOT_KEY, WIDGET_SOURCE_KEY } from "@const/identifiers";
-import { reloadWidgets, setSnapshot } from "@native/photoStore";
+import {
+  WIDGET_SETTINGS_KEY,
+  WIDGET_SNAPSHOT_KEY,
+  WIDGET_SOURCE_KEY,
+  WIDGET_STATUS_KEY,
+} from "@const/identifiers";
+import { getSnapshot, reloadWidgets, setSnapshot } from "@native/photoStore";
 
 export type { SnapshotAlbum, SnapshotGroup, WidgetSnapshot } from "@backend/api/widget/snapshot";
 
@@ -16,6 +21,10 @@ export class WidgetService {
       GroupsService.all(),
     ]);
     return toSnapshot(albums, photosByAlbum, groups, Date.now());
+  }
+
+  static readStatus(): string | null {
+    return getSnapshot(WIDGET_STATUS_KEY);
   }
 
   static async sync(): Promise<WidgetSnapshot> {

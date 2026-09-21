@@ -31,7 +31,6 @@ struct WidgetSettings: Codable {
   var showAlbumTitle: Bool = false
   var showDate: Bool = false
   var fit: String = "fill"
-  var shuffle: Bool = false
   var refreshMinutes: Int = 60
 
   var contentMode: ContentMode { fit == "fit" ? .fit : .fill }
@@ -42,6 +41,7 @@ enum FrameStore {
   static let snapshotKey = "albums"
   static let settingsKey = "settings"
   static let sourceKey = "widgetSource"
+  static let statusKey = "widgetStatus"
   static let databaseName = "frame.db"
   static let photosDirectory = "photos"
 
@@ -62,6 +62,21 @@ enum FrameStore {
       let parsed = try? JSONDecoder().decode(WidgetSettings.self, from: data)
     else { return WidgetSettings() }
     return parsed
+  }
+
+  static func recordStatus(_ record: [String: Any], key: String) {
+    guard let defaults = groupDefaults() else { return }
+    var all: [String: Any] = [:]
+    if let raw = defaults.string(forKey: statusKey), let data = raw.data(using: .utf8),
+      let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    {
+      all = parsed
+    }
+    all[key] = record
+    guard let data = try? JSONSerialization.data(withJSONObject: all),
+      let json = String(data: data, encoding: .utf8)
+    else { return }
+    defaults.set(json, forKey: statusKey)
   }
 
   static func sourceKind() -> DataSourceKind {
@@ -476,11 +491,51 @@ struct PhotoProvider: AppIntentTimelineProvider {
     PhotoEntry
   > {
     let built = entries(for: configuration, family: context.family)
+    recordStatus(built, configuration: configuration, family: context.family)
     guard !built.isEmpty else {
       return Timeline(
         entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(3600)))
     }
     return Timeline(entries: built, policy: .atEnd)
+  }
+
+  private static func familyName(_ family: WidgetFamily) -> String {
+    switch family {
+    case .systemSmall: return "small"
+    case .systemMedium: return "medium"
+    case .systemLarge: return "large"
+    case .systemExtraLarge: return "extraLarge"
+    default: return "other"
+    }
+  }
+
+  private func recordStatus(
+    _ built: [PhotoEntry], configuration: SelectAlbumIntent, family: WidgetFamily
+  ) {
+    guard let first = built.first else { return }
+    let name = Self.familyName(family)
+    let albumId = first.albumId ?? ""
+    let groupId = configuration.group?.id ?? ""
+    // what: the spacing actually used, so a change to the interval rule cannot desync the report
+    let spacing =
+      built.count > 1
+      ? Int(built[1].date.timeIntervalSince(built[0].date) / 60)
+      : max(Self.minimumIntervalMinutes, first.settings.refreshMinutes)
+    FrameStore.recordStatus(
+      [
+        "family": name,
+        "albumId": albumId,
+        "albumName": first.albumName,
+        "groupName": configuration.group?.name ?? "",
+        "shuffle": configuration.shuffle,
+        "state": first.total == 0 ? (first.albumId == nil ? "noAlbum" : "noPhotos") : "ok",
+        "photos": first.total,
+        "entries": built.count,
+        "decodePixels": PhotoLoader.maxPixels(for: family),
+        "intervalMinutes": spacing,
+        "firstEntryAt": first.date.timeIntervalSince1970 * 1000,
+        "updatedAt": Date().timeIntervalSince1970 * 1000,
+      ], key: "\(name)|\(albumId)|\(groupId)|\(configuration.shuffle)")
   }
 
   private func entries(for configuration: SelectAlbumIntent, family: WidgetFamily) -> [PhotoEntry] {
@@ -504,7 +559,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
     let slot = (Date().timeIntervalSince1970 / interval).rounded(.down)
     let slotStart = Date(timeIntervalSince1970: slot * interval)
 
-    let useShuffle = configuration.shuffle || settings.shuffle
+    let useShuffle = configuration.shuffle
     let total = album.photos.count
     let firstSlot = Int(slot)
     var orders: [Int: [String]] = [:]

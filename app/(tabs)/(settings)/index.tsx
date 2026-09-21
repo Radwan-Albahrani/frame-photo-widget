@@ -85,11 +85,6 @@ export default function SettingsScreen() {
               </NativeText>
             ))}
           </Picker>
-          <Toggle
-            label="Shuffle photos"
-            isOn={settings.shuffle}
-            onIsOnChange={(shuffle) => update({ shuffle })}
-          />
           <Picker
             label="Photo size"
             selection={settings.fit}

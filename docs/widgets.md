@@ -232,6 +232,54 @@ So rotation is done *inside one timeline*: `PhotoProvider` builds up to 24 entri
 `WidgetCenter.shared.reloadAllTimelines()` (via `reloadWidgets()`) is called only when the *data*
 changes: a photo added or removed, an album renamed or deleted, a setting changed.
 
+## Shuffle is per widget, and only per widget
+
+There is no global shuffle setting. `SelectAlbumIntent.shuffle` is the only source, so each widget
+decides its own order in its edit sheet.
+
+It used to be both, resolved as `configuration.shuffle || settings.shuffle`. That OR meant the
+per-widget switch could only ever turn shuffle *on*: with the global on, a widget set to "off"
+still shuffled and there was no way to make one widget stay in album order. It read as an override
+and was not one. If a global default is ever wanted back, it has to be a three-state per-widget
+parameter (default / always / never), never an OR.
+
+## The widget reports its own status, and the app only reads it
+
+Docs cannot prove to a person that rotation works; the Diagnostics screen has to. It is fed by
+facts the extension writes down, not by settings the app re-derives — if the app inferred the
+schedule it would state what *should* happen, which is exactly what it did while rotation was
+broken and the screen still looked correct.
+
+`PhotoProvider.timeline(for:in:)` calls `FrameStore.recordStatus` with what it actually built, into
+App Group `UserDefaults` under `widgetStatus`. Four rules came out of review and each one is
+load-bearing:
+
+1. **Record the schedule, never an instant.** The record carries `firstEntryAt`, `intervalMinutes`
+   and `entries`; the app computes the next change from `now` (`nextChangeAfter`). An earlier
+   version stored `nextChangeAt` directly, which is true only at the moment it is written — at the
+   hourly setting the record is rewritten once a day, so "Next photo" would have shown a time in
+   the past while the widget rotated perfectly. That is the same "states what should happen" bug
+   this whole mechanism exists to kill.
+2. **`intervalMinutes` is measured, not recomputed.** It is `built[1].date - built[0].date`, so a
+   change to the spacing rule cannot desync the report from the timeline.
+3. **Expiry belongs on the READ path.** Records are dropped by the app after 7 days, and dropped
+   entirely when `placedWidgetCount()` is 0. Pruning on write cannot work: remove the last widget
+   and nothing ever writes again, so the row would be immortal and the screen would report a
+   ghost widget as "past its schedule". Reading is also not memory-bound, unlike the extension.
+4. **The key is the whole configuration** — `"<family>|<albumId>|<groupId>|<shuffle>"`. Keying on
+   family and album alone let two same-size widgets on one album overwrite each other, which hid
+   the per-widget shuffle switch: the one thing the widget edit sheet controls.
+
+Every outcome is recorded, including failure. A widget with no album or an empty album writes a
+record with `state` set to `noAlbum` or `noPhotos`, so Diagnostics says "Needs an album" instead
+of "Waiting for first refresh… nothing is wrong". Absence of a record now means one thing only:
+iOS has not asked yet.
+
+The app reads the key through `WidgetService.readStatus()`, which keeps every App Group key owned
+by the widget feature. `FramePhotoStore.placedWidgetCount()`
+(`WidgetCenter.currentConfigurations().count`) supplies the one fact the records cannot: how many
+widgets are actually on the Home Screen.
+
 ## Tinted mode will eat your photos
 
 Under the Home Screen's tinted ("transparent") rendering mode iOS desaturates everything to a single

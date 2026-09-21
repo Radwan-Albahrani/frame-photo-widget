@@ -4,33 +4,113 @@ import { useCallback, useState } from "react";
 import {
   DiagnosticsService,
   type DiagnosticsReport,
+  type Health,
+  type WidgetReport,
 } from "@backend/api/diagnostics/diagnostics.service";
-import { formatBytes, photoCountLabel } from "@ui/format";
+import { coversUntil, familyLabel, nextChangeAfter } from "@backend/api/diagnostics/widgetStatus";
+import {
+  agoFrom,
+  countLabel,
+  dayAndClockAt,
+  everyLabel,
+  formatBytes,
+  photoCountLabel,
+} from "@ui/format";
 
-function clockAt(epoch: number): string {
-  return new Date(epoch).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+const STATUS: Record<Health, { title: string; detail: string }> = {
+  healthy: {
+    title: "Rotating on schedule",
+    detail:
+      "Every photo change listed below is already scheduled on your phone. Frame does not need to be open, and your phone does not need a connection, for any of them to happen.",
+  },
+  waiting: {
+    title: "Waiting for first refresh",
+    detail:
+      "You have a widget on your Home Screen but iOS has not asked Frame for its photos yet. This usually takes a minute, and nothing is wrong.",
+  },
+  none: {
+    title: "None placed yet",
+    detail: "Touch and hold your Home Screen, tap Edit, then Add Widget, and pick Frame.",
+  },
+  needsAlbum: {
+    title: "Needs an album",
+    detail:
+      "Your widgets have no photos to show. Touch and hold a widget, tap Edit Widget, and choose an album that has photos in it.",
+  },
+  unreadable: {
+    title: "Could not be read",
+    detail:
+      "Frame could not read what its widgets last reported. Tapping Update widgets now in Settings rebuilds it.",
+  },
+};
 
-function hours(value: number): string {
-  if (value >= 48) return `${Math.round(value / 24)} days`;
-  if (value >= 1.5) return `${Math.round(value)} hours`;
-  return `${Math.round(value * 60)} minutes`;
-}
+const WIDGET_STATE: Record<string, string> = {
+  noAlbum: "No album chosen",
+  noPhotos: "Album has no photos",
+};
 
-function everyLabel(minutes: number): string {
-  if (minutes >= 1440) return "once a day";
-  if (minutes >= 60) return `every ${minutes / 60} hours`;
-  return `every ${minutes} minutes`;
+function WidgetSection({ widget, now }: { widget: WidgetReport; now: number }) {
+  const broken = WIDGET_STATE[widget.state];
+  return (
+    <Section
+      title={`${widget.albumName} · ${familyLabel(widget.family)}`}
+      footer={
+        <NativeText>
+          {`Last reported ${agoFrom(widget.updatedAt, now)}, by iOS, with Frame closed.`}
+        </NativeText>
+      }
+    >
+      <LabeledContent label="Album">
+        <NativeText>
+          {broken ?? `${widget.albumName} · ${photoCountLabel(widget.photos)}`}
+        </NativeText>
+      </LabeledContent>
+      {widget.groupName === "" ? null : (
+        <LabeledContent label="Picked from">
+          <NativeText>{widget.groupName}</NativeText>
+        </LabeledContent>
+      )}
+      <LabeledContent label="Order">
+        <NativeText>{widget.shuffle ? "Shuffled" : "In album order"}</NativeText>
+      </LabeledContent>
+      <LabeledContent label="Changes">
+        <NativeText>{everyLabel(widget.intervalMinutes)}</NativeText>
+      </LabeledContent>
+      <LabeledContent label="Next photo">
+        <NativeText>{dayAndClockAt(nextChangeAfter(widget, now), now)}</NativeText>
+      </LabeledContent>
+      <LabeledContent label="Scheduled through">
+        <NativeText>{dayAndClockAt(coversUntil(widget), now)}</NativeText>
+      </LabeledContent>
+      <LabeledContent label="Photos queued">
+        <NativeText>{photoCountLabel(widget.entries)}</NativeText>
+      </LabeledContent>
+      <LabeledContent label="Photo size">
+        <NativeText>{`${widget.decodePixels} px`}</NativeText>
+      </LabeledContent>
+    </Section>
+  );
 }
 
 export default function DiagnosticsScreen() {
   const [report, setReport] = useState<DiagnosticsReport | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const now = Date.now();
 
   useFocusEffect(
     useCallback(() => {
-      void (async () => setReport(await DiagnosticsService.read()))();
+      void (async () => {
+        try {
+          setReport(await DiagnosticsService.read());
+          setFailure(null);
+        } catch (error) {
+          setFailure(error instanceof Error ? error.message : String(error));
+        }
+      })();
     }, [])
   );
+
+  const status = failure !== null ? STATUS.unreadable : report && STATUS[report.health];
 
   return (
     <>
@@ -38,68 +118,94 @@ export default function DiagnosticsScreen() {
       <Host style={{ flex: 1 }} useViewportSizeMeasurement>
         <Form>
           <Section
-            title="Rotation"
+            title="Status"
+            footer={<NativeText>{failure ?? status?.detail ?? ""}</NativeText>}
+          >
+            <LabeledContent label="Widgets">
+              <NativeText>{status?.title ?? "—"}</NativeText>
+            </LabeledContent>
+            <LabeledContent label="On your Home Screen">
+              <NativeText>
+                {report === null ? "—" : countLabel(report.placedCount, "widget", "widgets")}
+              </NativeText>
+            </LabeledContent>
+            <LabeledContent label="Reporting">
+              <NativeText>
+                {report === null ? "—" : countLabel(report.widgets.length, "widget", "widgets")}
+              </NativeText>
+            </LabeledContent>
+          </Section>
+
+          {(report?.widgets ?? []).map((widget) => (
+            <WidgetSection
+              key={`${widget.family}|${widget.albumId}|${widget.groupName}|${widget.shuffle}`}
+              widget={widget}
+              now={now}
+            />
+          ))}
+
+          <Section
+            title="Applies to every widget"
             footer={
               <NativeText>
-                Frame schedules every change in advance, so your widgets keep moving while the app
-                is closed. iOS never redraws a widget more often than every five minutes.
+                Album order and shuffle are chosen per widget, in each widget's own edit sheet.
+                These three are shared by all of them.
               </NativeText>
             }
           >
-            <LabeledContent label="Changes">
+            <LabeledContent label="Framing">
               <NativeText>
-                {report === null ? "—" : everyLabel(report.effectiveIntervalMinutes)}
+                {report === null
+                  ? "—"
+                  : report.display.fit === "fit"
+                    ? "Whole photo"
+                    : "Fills the widget"}
               </NativeText>
             </LabeledContent>
-            <LabeledContent label="Order">
+            <LabeledContent label="Album title">
               <NativeText>
-                {report === null ? "—" : report.shuffle ? "Shuffled" : "In album order"}
+                {report === null ? "—" : report.display.showAlbumTitle ? "Shown" : "Hidden"}
               </NativeText>
             </LabeledContent>
-            <LabeledContent label="Next change">
-              <NativeText>{report === null ? "—" : clockAt(report.nextChangeAt)}</NativeText>
+            <LabeledContent label="Date">
+              <NativeText>
+                {report === null ? "—" : report.display.showDate ? "Shown" : "Hidden"}
+              </NativeText>
             </LabeledContent>
           </Section>
 
           <Section
-            title="Scheduled ahead"
+            title="How rotation works"
             footer={
               <NativeText>
-                Each widget size gets its own schedule. iOS allows a widget roughly 40 to 70
-                refreshes a day; moving between photos that are already scheduled costs none of
-                that, so only the figure below is spent.
+                Frame hands iOS a batch of photo changes with the times they should happen, and iOS
+                performs them itself. That is why rotation continues while Frame is closed, and why
+                you never need to open the app to keep it going. iOS will not redraw a widget more
+                often than every five minutes, and it allows roughly 40 to 70 batches a day — moving
+                between photos inside a batch costs none of that.
               </NativeText>
             }
           >
-            {(report?.families ?? []).map((family) => (
-              <LabeledContent key={family.family} label={family.label}>
-                <NativeText>
-                  {hours(family.coverageHours)} · {family.reloadsPerDay.toFixed(1)}/day
-                </NativeText>
-              </LabeledContent>
-            ))}
+            <LabeledContent label="Needs the app open">
+              <NativeText>Never</NativeText>
+            </LabeledContent>
+            <LabeledContent label="Needs a connection">
+              <NativeText>Never</NativeText>
+            </LabeledContent>
+            <LabeledContent label="Photos leave your phone">
+              <NativeText>Never</NativeText>
+            </LabeledContent>
           </Section>
 
           <Section
-            title="Photo quality"
+            title="Library"
             footer={
               <NativeText>
-                A widget stores every scheduled photo, and iOS rejects a schedule that grows too
-                large. These are the largest sizes Frame can decode while keeping every schedule
-                inside that limit.
+                Frame keeps its own downsampled copy of each photo so widgets can draw without
+                opening your photo library.
               </NativeText>
             }
           >
-            {(report?.families ?? []).map((family) => (
-              <LabeledContent key={family.family} label={family.label}>
-                <NativeText>
-                  {family.decodePixels} px · {family.entriesPerTimeline} photos ahead
-                </NativeText>
-              </LabeledContent>
-            ))}
-          </Section>
-
-          <Section title="Library">
             <LabeledContent label="Albums">
               <NativeText>{report === null ? "—" : String(report.albumCount)}</NativeText>
             </LabeledContent>

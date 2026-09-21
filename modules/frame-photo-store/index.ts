@@ -23,6 +23,7 @@ interface FramePhotoStoreModule {
   setSnapshot(key: string, json: string): void;
   getSnapshot(key: string): string | null;
   reloadWidgets(): void;
+  placedWidgetCount(): Promise<number>;
   usedBytes(): Promise<number>;
 }
 

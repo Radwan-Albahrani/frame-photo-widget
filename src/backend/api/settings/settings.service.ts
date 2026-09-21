@@ -12,7 +12,6 @@ export interface AppSettings {
   showAlbumTitle: boolean;
   showDate: boolean;
   fit: PhotoFit;
-  shuffle: boolean;
   widgetSource: WidgetSource;
 }
 
@@ -21,7 +20,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showAlbumTitle: false,
   showDate: false,
   fit: "fill",
-  shuffle: false,
   widgetSource: "snapshot",
 };
 

@@ -128,6 +128,10 @@ public final class FramePhotoStoreModule: Module {
       WidgetCenter.shared.reloadAllTimelines()
     }
 
+    AsyncFunction("placedWidgetCount") { () -> Int in
+      try await WidgetCenter.shared.currentConfigurations().count
+    }
+
     AsyncFunction("hashPhotos") { (fileNames: [String]) -> [String: String] in
       let directory = try photosDirectory()
       var digests: [String: String] = [:]
@@ -141,12 +145,12 @@ public final class FramePhotoStoreModule: Module {
 
     AsyncFunction("usedBytes") { () -> Int in
       let directory = try photosDirectory()
-      let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+      let keys: [URLResourceKey] = [.fileSizeKey]
+      let files = FileManager.default.enumerator(
+        at: directory, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])
       var total = 0
-      for name in names {
-        let attributes = try? FileManager.default.attributesOfItem(
-          atPath: directory.appendingPathComponent(name).path)
-        total += (attributes?[.size] as? Int) ?? 0
+      while let url = files?.nextObject() as? URL {
+        total += (try? url.resourceValues(forKeys: Set(keys)))?.fileSize ?? 0
       }
       return total
     }

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { countLabel, formatBytes, groupCountLabel, photoCountLabel } from "@ui/format";
+import {
+  agoFrom,
+  clockAt,
+  countLabel,
+  dayAndClockAt,
+  everyLabel,
+  formatBytes,
+  groupCountLabel,
+  photoCountLabel,
+} from "@ui/format";
 
 describe("formatBytes", () => {
   it("reports bytes, kilobytes and megabytes", () => {
@@ -39,5 +48,38 @@ describe("groupCountLabel", () => {
   it("names subfolders alongside albums", () => {
     expect(groupCountLabel(4, 1)).toBe("4 albums · 1 folder");
     expect(groupCountLabel(0, 2)).toBe("0 albums · 2 folders");
+  });
+});
+
+describe("everyLabel", () => {
+  it("singularises the hourly setting rather than saying every 1 hours", () => {
+    expect(everyLabel(60)).toBe("every 1 hour");
+    expect(everyLabel(360)).toBe("every 6 hours");
+    expect(everyLabel(5)).toBe("every 5 minutes");
+    expect(everyLabel(1440)).toBe("once a day");
+  });
+});
+
+describe("agoFrom", () => {
+  const NOW = new Date("2026-09-21T20:00:00").getTime();
+
+  it("reads in whole minutes, hours and days", () => {
+    expect(agoFrom(NOW, NOW)).toBe("just now");
+    expect(agoFrom(NOW - 60_000, NOW)).toBe("1 minute ago");
+    expect(agoFrom(NOW - 3 * 3_600_000, NOW)).toBe("3 hours ago");
+    expect(agoFrom(NOW - 2 * 86_400_000, NOW)).toBe("2 days ago");
+  });
+});
+
+describe("dayAndClockAt", () => {
+  const NOW = new Date("2026-09-21T20:00:00").getTime();
+
+  it("drops the day for today and names it beyond that", () => {
+    expect(dayAndClockAt(NOW + 3_600_000, NOW)).toBe(clockAt(NOW + 3_600_000));
+    expect(dayAndClockAt(NOW + 8 * 3_600_000, NOW)).toContain("tomorrow");
+  });
+
+  it("keeps the time on a named day, so two rows never mix formats", () => {
+    expect(dayAndClockAt(NOW + 3 * 86_400_000, NOW)).toContain(":");
   });
 });

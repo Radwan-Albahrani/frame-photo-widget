@@ -12,6 +12,8 @@ export const WIDGET_SETTINGS_KEY = "settings";
 
 export const WIDGET_SOURCE_KEY = "widgetSource";
 
+export const WIDGET_STATUS_KEY = "widgetStatus";
+
 export const WIDGET_KIND_PHOTO = "FramePhotoWidget";
 
 export const WIDGET_THUMBNAIL_MAX_PIXELS = 1200;

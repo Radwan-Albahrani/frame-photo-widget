@@ -45,6 +45,11 @@ export function reloadWidgets(): void {
   native?.reloadWidgets();
 }
 
+export async function placedWidgetCount(): Promise<number> {
+  if (native == null) return 0;
+  return native.placedWidgetCount();
+}
+
 export async function usedBytes(): Promise<number> {
   if (native == null) return 0;
   return native.usedBytes();
