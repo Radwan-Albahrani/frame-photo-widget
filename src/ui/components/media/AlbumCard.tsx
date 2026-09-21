@@ -2,6 +2,7 @@ import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@ui/components/primitives/Text";
+import { photoCountLabel } from "@ui/format";
 import { colors, radius, space } from "@ui/theme";
 
 interface AlbumCardProps {
@@ -30,7 +31,7 @@ export function AlbumCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${name}, ${photoCount === 1 ? "1 photo" : `${photoCount} photos`}`}
+      accessibilityLabel={`${name}, ${photoCountLabel(photoCount)}`}
       onPress={onPress}
       style={({ pressed }) => ({
         width: size,
@@ -102,7 +103,7 @@ export function AlbumCard({
           {name}
         </Text>
         <Text variant="footnote" tone="muted">
-          {photoCount === 1 ? "1 photo" : `${photoCount} photos`}
+          {photoCountLabel(photoCount)}
         </Text>
       </View>
     </Pressable>

@@ -21,6 +21,7 @@ import {
 } from "@backend/api/settings/settings.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import { usedBytes } from "@native/photoStore";
+import { formatBytes } from "@ui/format";
 
 const INTERVALS = [
   { label: "5 minutes", value: 5 },
@@ -169,10 +170,4 @@ export default function SettingsScreen() {
       </Host>
     </>
   );
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
