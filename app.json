@@ -36,8 +36,7 @@
             "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
           }
         ]
-      },
-      "buildNumber": "16"
+      }
     },
     "plugins": [
       "expo-router",
