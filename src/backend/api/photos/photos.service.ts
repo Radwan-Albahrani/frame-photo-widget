@@ -1,0 +1,79 @@
+import { asc, eq, inArray, sql } from "drizzle-orm";
+import { db } from "@backend/core/db/client";
+import { createId, now } from "@backend/core/db/ids";
+import { albums, photos, type PhotoRow } from "@backend/core/db/schema";
+import { deletePhotoFiles, savePhoto } from "@native/photoStore";
+
+export class PhotosService {
+  static listByAlbum(albumId: string): PhotoRow[] {
+    return db
+      .select()
+      .from(photos)
+      .where(eq(photos.albumId, albumId))
+      .orderBy(asc(photos.sortOrder), asc(photos.createdAt))
+      .all();
+  }
+
+  static countByAlbum(albumId: string): number {
+    const row = db
+      .select({ value: sql<number>`count(*)` })
+      .from(photos)
+      .where(eq(photos.albumId, albumId))
+      .get();
+    return row?.value ?? 0;
+  }
+
+  static async add(albumId: string, sourceUris: string[]): Promise<PhotoRow[]> {
+    const highest = db
+      .select({ value: sql<number>`coalesce(max(${photos.sortOrder}), -1)` })
+      .from(photos)
+      .where(eq(photos.albumId, albumId))
+      .get();
+    let order = (highest?.value ?? -1) + 1;
+    const created: PhotoRow[] = [];
+
+    for (const sourceUri of sourceUris) {
+      const id = createId();
+      const saved = await savePhoto(sourceUri, `${id}.jpg`);
+      if (saved === null) continue;
+      const row: PhotoRow = {
+        id,
+        albumId,
+        fileName: saved.fileName,
+        width: saved.width,
+        height: saved.height,
+        bytes: saved.bytes,
+        sortOrder: order,
+        createdAt: now(),
+      };
+      db.insert(photos).values(row).run();
+      created.push(row);
+      order += 1;
+    }
+
+    if (created.length > 0) {
+      db.update(albums).set({ updatedAt: now() }).where(eq(albums.id, albumId)).run();
+    }
+    return created;
+  }
+
+  static async remove(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const rows = db.select().from(photos).where(inArray(photos.id, ids)).all();
+    db.delete(photos).where(inArray(photos.id, ids)).run();
+    await deletePhotoFiles(rows.map((row) => row.fileName));
+  }
+
+  static async removeAlbumPhotos(albumId: string): Promise<void> {
+    const rows = db.select().from(photos).where(eq(photos.albumId, albumId)).all();
+    db.delete(photos).where(eq(photos.albumId, albumId)).run();
+    await deletePhotoFiles(rows.map((row) => row.fileName));
+  }
+
+  static reorder(albumId: string, orderedIds: string[]): void {
+    orderedIds.forEach((id, index) => {
+      db.update(photos).set({ sortOrder: index }).where(eq(photos.id, id)).run();
+    });
+    db.update(albums).set({ updatedAt: now() }).where(eq(albums.id, albumId)).run();
+  }
+}

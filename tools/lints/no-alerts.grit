@@ -1,0 +1,12 @@
+language js
+
+or {
+  `$object.alert($...)` where {
+    $object <: `Alert`,
+    register_diagnostic(span=$object, message="Alert.alert is banned. Use notify.success/notify.error for anything the user does not have to answer, a native menu (MenuView / HoldMenu / ContextMenu) whose destructive action carries a nested confirm submenu for a decision, or Sheet.tsx / ChoiceSheet when the flow needs a real surface.")
+  },
+  identifier() as $identifier where {
+    $identifier <: `ActionSheetIOS`,
+    register_diagnostic(span=$identifier, message="ActionSheetIOS is banned. Raise a real native menu instead: MenuView (tap) or HoldMenu (long-press) from src/ui/menu, whose actions carry nested submenus, destructive styling, disabled state and SF Symbols.")
+  }
+}

@@ -1,0 +1,3 @@
+[install]
+# Expo SDK 57 packages are recent; the release-age gate would block them for this project.
+minimumReleaseAge = 0

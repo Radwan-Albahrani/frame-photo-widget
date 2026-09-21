@@ -1,0 +1,10 @@
+language js
+
+or {
+  `require($specifier)` where {
+    register_diagnostic(span=$specifier, message="Lazy module loading is banned. Replace this require() with a static `import ... from` at the top of the file.")
+  },
+  `import($specifier)` where {
+    register_diagnostic(span=$specifier, message="Lazy module loading is banned. Replace this dynamic import() with a static `import ... from` at the top of the file.")
+  }
+}

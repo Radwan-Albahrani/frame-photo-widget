@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "Frame",
+    "slug": "frame-photo-widget",
+    "scheme": "frame",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.lumen.frame",
+      "appleTeamId": "36MBFNUCBC",
+      "supportsTablet": true,
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.lumen.frame"
+        ]
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "CADisableMinimumFrameDurationOnPhone": true,
+        "NSPhotoLibraryUsageDescription": "Frame only reads the photos you pick yourself, to show them in your widgets. Nothing is uploaded and nothing else in your library is read.",
+        "CFBundleLocalizations": [
+          "en",
+          "ar"
+        ],
+        "UIPrefersShowingLanguageSettings": true,
+        "OPSQLite_AppGroup": "group.com.lumen.frame"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      "expo-image",
+      "expo-status-bar",
+      "@bacons/apple-targets",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Frame only reads the photos you pick yourself, to show them in your widgets."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "18.0",
+            "enableSceneSupport": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "615bc44b-e241-40cf-bcaa-fd1fd2d5dcb4"
+      }
+    },
+    "owner": "developerxt",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/615bc44b-e241-40cf-bcaa-fd1fd2d5dcb4"
+    }
+  }
+}

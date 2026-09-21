@@ -1,0 +1,4 @@
+#!/bin/sh
+# Tracked hook: enable with `git config core.hooksPath .githooks` (see tools/lints/commit-message.ts).
+# pre-commit cannot see the message — the subject convention has to be gated here, where git passes the file in.
+exec bun tools/lints/commit-message.ts "$1"

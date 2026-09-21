@@ -1,0 +1,54 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "root": true,
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/ios",
+      "!**/android",
+      "!**/.expo",
+      "!**/dist",
+      "!src/backend/core/db/migrations-bundle.ts",
+      "!**/coverage",
+      "!bun.lock"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "indentStyle": "space",
+      "indentWidth": 2,
+      "lineWidth": 100,
+      "quoteStyle": "double",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "es5",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
+    }
+  },
+  "json": { "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 } },
+  "linter": {
+    "enabled": true,
+    "rules": { "preset": "recommended", "complexity": { "noStaticOnlyClass": "off" } }
+  },
+  "assist": { "enabled": false },
+  "overrides": [
+    {
+      "includes": ["**/*.ts", "**/*.tsx"],
+      "plugins": ["./tools/lints/no-lazy-imports.grit", "./tools/lints/no-alerts.grit"]
+    },
+    {
+      "includes": ["**/*.test.ts", "**/*.test.tsx"],
+      "linter": { "rules": { "style": { "noNonNullAssertion": "off" } } }
+    }
+  ]
+}

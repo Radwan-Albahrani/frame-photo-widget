@@ -1,0 +1,14 @@
+#!/bin/sh
+# Tracked hook: enable with `git config core.hooksPath .githooks` (see tools/lints/no-new-comments.ts).
+# Only the fast gates run here. `bun run gates` stays manual, deliberately: it is far too heavy per commit.
+# Every gate runs even when an earlier one fails, so one commit attempt reports every fix you owe.
+status=0
+bun tools/lints/no-new-comments.ts || status=1
+bun tools/lints/no-silent-failures.ts || status=1
+
+if [ "$status" -ne 0 ]; then
+  printf '\n✖ Commit blocked. Every gate ran, so the violations printed above are the COMPLETE list:\n'
+  printf '  each names its file, its line and the fix. Do not re-run the gates to find out what is wrong.\n'
+  printf '  Fix them all in one pass, `git add` the fixes, then commit again.\n\n'
+fi
+exit "$status"
