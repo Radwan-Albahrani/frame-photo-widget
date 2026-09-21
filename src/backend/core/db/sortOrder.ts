@@ -7,7 +7,10 @@ export async function nextSortOrder(
   column: SQLiteColumn,
   where?: SQL
 ): Promise<number> {
-  const query = db.select({ value: max(column) }).from(table);
-  const row = where === undefined ? await query.get() : await query.where(where).get();
+  const row = await db
+    .select({ value: max(column) })
+    .from(table)
+    .where(where)
+    .get();
   return Number(row?.value ?? -1) + 1;
 }

@@ -1,4 +1,5 @@
 import { asc, eq, inArray, isNull } from "drizzle-orm";
+import { groupBy } from "@backend/core/collections";
 import { db } from "@backend/core/db/client";
 import { createId, now } from "@backend/core/db/ids";
 import { albums, photos, type PhotoRow } from "@backend/core/db/schema";
@@ -13,6 +14,15 @@ export class PhotosService {
       .where(eq(photos.albumId, albumId))
       .orderBy(asc(photos.sortOrder), asc(photos.createdAt))
       .all();
+  }
+
+  static async fileNamesByAlbum(): Promise<Map<string, { fileName: string }[]>> {
+    const rows = await db
+      .select({ albumId: photos.albumId, fileName: photos.fileName })
+      .from(photos)
+      .orderBy(asc(photos.sortOrder), asc(photos.createdAt))
+      .all();
+    return groupBy(rows, (row) => row.albumId);
   }
 
   static async add(

@@ -1,50 +1,15 @@
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { albumsWithCounts, type AlbumWithCount } from "@backend/api/albums/albums.query";
 import { db } from "@backend/core/db/client";
 import { createId, now } from "@backend/core/db/ids";
-import { albums, photos, type AlbumRow } from "@backend/core/db/schema";
+import { albums, type AlbumRow } from "@backend/core/db/schema";
 import { nextSortOrder } from "@backend/core/db/sortOrder";
 
-export interface AlbumWithCount extends AlbumRow {
-  photoCount: number;
-  coverFileName: string | null;
-}
-
-export interface AlbumLibrary {
-  albums: AlbumWithCount[];
-  photosByAlbum: Map<string, { fileName: string }[]>;
-}
+export type { AlbumWithCount } from "@backend/api/albums/albums.query";
 
 export class AlbumsService {
-  static async library(): Promise<AlbumLibrary> {
-    const [rows, everyPhoto] = await Promise.all([
-      db.select().from(albums).orderBy(asc(albums.sortOrder), asc(albums.createdAt)).all(),
-      // what: leading with album_id lets the photos_album_order index serve this without a sort
-      db
-        .select({ id: photos.id, albumId: photos.albumId, fileName: photos.fileName })
-        .from(photos)
-        .orderBy(asc(photos.albumId), asc(photos.sortOrder), asc(photos.createdAt))
-        .all(),
-    ]);
-
-    const photosByAlbum = new Map<string, { id: string; fileName: string }[]>();
-    for (const photo of everyPhoto) {
-      const owned = photosByAlbum.get(photo.albumId);
-      if (owned === undefined) photosByAlbum.set(photo.albumId, [photo]);
-      else owned.push(photo);
-    }
-
-    return {
-      albums: rows.map((album) => {
-        const owned = photosByAlbum.get(album.id) ?? [];
-        const cover = owned.find((photo) => photo.id === album.coverPhotoId) ?? owned[0];
-        return { ...album, photoCount: owned.length, coverFileName: cover?.fileName ?? null };
-      }),
-      photosByAlbum,
-    };
-  }
-
   static async list(): Promise<AlbumWithCount[]> {
-    return (await AlbumsService.library()).albums;
+    return albumsWithCounts(db);
   }
 
   static async byId(id: string): Promise<AlbumRow | null> {

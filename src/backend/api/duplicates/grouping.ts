@@ -1,3 +1,4 @@
+import { groupBy } from "@backend/core/collections";
 import type { PhotoRow } from "@backend/core/db/schema";
 
 export interface DuplicateCopy {
@@ -20,15 +21,15 @@ export function identityOf(photo: PhotoRow): string | null {
 }
 
 export function groupDuplicates(rows: { photo: PhotoRow; albumName: string }[]): DuplicateSet[] {
-  const buckets = new Map<string, DuplicateCopy[]>();
-  for (const row of rows) {
-    const key = identityOf(row.photo);
-    if (key === null) continue;
-    const copies = buckets.get(key) ?? [];
-    copies.push({ photo: row.photo, albumId: row.photo.albumId, albumName: row.albumName });
-    buckets.set(key, copies);
-  }
+  const buckets = groupBy(rows, (row) => identityOf(row.photo));
   return [...buckets.entries()]
     .filter(([, copies]) => copies.length > 1)
-    .map(([key, copies]) => ({ key, copies }));
+    .map(([key, copies]) => ({
+      key,
+      copies: copies.map((row) => ({
+        photo: row.photo,
+        albumId: row.photo.albumId,
+        albumName: row.albumName,
+      })),
+    }));
 }

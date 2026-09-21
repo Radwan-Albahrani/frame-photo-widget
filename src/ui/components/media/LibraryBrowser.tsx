@@ -71,26 +71,25 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
   const reload = useCallback(async () => {
-    const [childGroups, everyAlbum, tree] = await Promise.all([
-      GroupsService.children(groupId),
+    const [browse, everyAlbum] = await Promise.all([
+      GroupsService.browse(groupId),
       AlbumsService.list(),
-      GroupsService.tree(),
     ]);
-    setGroups(childGroups);
-    setAlbums(everyAlbum.filter((album) => album.groupId === groupId));
-    setFolders(tree);
 
-    const descendants = await GroupsService.subtrees(childGroups.map((group) => group.id));
     const next: Record<string, (string | null)[]> = {};
-    for (const group of childGroups) {
-      const inside = new Set(descendants[group.id] ?? [group.id]);
+    for (const group of browse.children) {
+      const inside = new Set(browse.subtrees[group.id]);
       next[group.id] = everyAlbum
         .filter((album) => album.groupId !== null && inside.has(album.groupId))
         .slice(0, 4)
         .map((album) => (album.coverFileName === null ? null : photoUri(album.coverFileName)));
     }
+
+    setGroups(browse.children);
+    setAlbums(everyAlbum.filter((album) => album.groupId === groupId));
+    setFolders(browse.tree);
     setCovers(next);
-    setSubtrees(descendants);
+    setSubtrees(browse.subtrees);
   }, [groupId]);
 
   useFocusEffect(
