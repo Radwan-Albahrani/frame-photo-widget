@@ -256,13 +256,17 @@ enum PhotoLoader {
     return Image(decorative: thumbnail, scale: 1)
   }
 
+  /// Kept low on purpose. WidgetKit archives the rendered view for every timeline entry, and
+  /// chronod rejects the whole timeline over a size limit — measured on iPhone: 520px passed,
+  /// while 700px and 900px failed at 14.0 MB and 21.9 MB. A rejected timeline never reloads at
+  /// all, so the widget freezes on one photo; a slightly softer photo is the better trade.
   static func maxPixels(for family: WidgetFamily) -> Int {
     switch family {
     case .systemSmall: return 520
-    case .systemMedium: return 820
-    case .systemLarge: return 900
-    case .systemExtraLarge: return 1200
-    default: return 640
+    case .systemMedium: return 520
+    case .systemLarge: return 520
+    case .systemExtraLarge: return 560
+    default: return 520
     }
   }
 }
@@ -417,7 +421,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
     case .systemSmall: return 120
     case .systemMedium: return 72
     case .systemLarge: return 56
-    case .systemExtraLarge: return 32
+    case .systemExtraLarge: return 8
     default: return 72
     }
   }
