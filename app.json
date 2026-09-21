@@ -6,7 +6,6 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.lumen.frame",
       "appleTeamId": "36MBFNUCBC",
@@ -38,7 +37,7 @@
           }
         ]
       },
-      "buildNumber": "12"
+      "buildNumber": "13"
     },
     "plugins": [
       "expo-router",
