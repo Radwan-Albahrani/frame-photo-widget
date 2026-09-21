@@ -8,7 +8,7 @@ import {
   Toggle,
 } from "@expo/ui/swift-ui";
 import { pickerStyle, tag } from "@expo/ui/swift-ui/modifiers";
-import { Stack, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   DEFAULT_SETTINGS,
@@ -140,8 +140,6 @@ export default function SettingsScreen() {
           </Section>
         </Form>
       </Host>
-
-      <Stack.Screen.Title large>Settings</Stack.Screen.Title>
     </>
   );
 }

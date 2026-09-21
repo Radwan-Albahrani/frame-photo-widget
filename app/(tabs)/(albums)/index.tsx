@@ -60,7 +60,6 @@ export default function AlbumsScreen() {
         )}
       />
 
-      <Stack.Screen.Title large>Albums</Stack.Screen.Title>
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button icon="plus" onPress={() => router.push("/name")} />
       </Stack.Toolbar>

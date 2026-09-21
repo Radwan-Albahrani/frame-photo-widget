@@ -42,6 +42,39 @@ Frame's own `Text`) when it is the child or a `ReactNode` prop of a SwiftUI comp
 A `label` prop typed `string` is fine as a plain string, because it is bridged as a prop rather than
 mounted as a child. The rule is about children and `ReactNode` props only.
 
+## The navigation theme is what makes the BARS dark
+
+This cost several rebuilds. There are **two** independent switches, and the app looks half-broken
+until both are on:
+
+1. `userInterfaceStyle: "dark"` in `app.json` → `UIUserInterfaceStyle = Dark` in the Info.plist.
+   This covers the app's own trait collection.
+2. **react-navigation's `ThemeProvider` with `DarkTheme`**, wrapped around the root `Stack` in
+   `app/_layout.tsx`. Without it expo-router falls back to the LIGHT navigation theme, and
+   react-native-screens then configures every nav bar — and the Liquid Glass capsule behind each
+   toolbar button — in light appearance.
+
+The symptom of missing (2) is unmistakable and misleading: the app background, text and tab bar are
+all correctly dark, but the header's toolbar buttons sit in a **light grey capsule** with a dark
+glyph. No amount of `headerTintColor`, `headerBlurEffect` or `headerTransparent` fixes it, because
+those style the bar's contents rather than its appearance mode. Do not reach for
+`hidesSharedBackground` to hide the evidence.
+
+```tsx
+const NAV_THEME = {
+  ...DarkTheme,
+  colors: { ...DarkTheme.colors, background: colors.surface, card: colors.surface },
+};
+
+<ThemeProvider value={NAV_THEME}>
+  <Stack ... />
+</ThemeProvider>
+```
+
+Keep the header options minimal on top of that (`headerLargeTitle`, a tint, a title colour). Layering
+`headerTransparent` + `headerBlurEffect` on a large-title screen produced an empty grey band with no
+title at all.
+
 ## Dark mode is forced, not preferred
 
 `userInterfaceStyle: "dark"` is set on both `expo` and `expo.ios` in `app.json`, which writes

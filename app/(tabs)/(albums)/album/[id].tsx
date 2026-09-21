@@ -140,11 +140,19 @@ export default function AlbumScreen() {
       <Stack.Screen.Title>{name}</Stack.Screen.Title>
       <Stack.Toolbar placement="right">
         {selecting ? (
-          <Stack.Toolbar.Button icon="trash" onPress={() => void removeSelected()} />
+          <Stack.Toolbar.Button
+            icon="trash"
+            tintColor={colors.error}
+            onPress={() => void removeSelected()}
+          />
         ) : (
-          <Stack.Toolbar.Button icon="plus" onPress={() => void addPhotos()} />
+          <Stack.Toolbar.Button
+            icon="plus"
+            tintColor={colors.accent}
+            onPress={() => void addPhotos()}
+          />
         )}
-        <Stack.Toolbar.Menu icon="ellipsis.circle">
+        <Stack.Toolbar.Menu icon="ellipsis" tintColor={colors.accent}>
           <Stack.Toolbar.MenuAction
             icon="pencil"
             onPress={() => router.push({ pathname: "/name", params: { id } })}
