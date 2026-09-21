@@ -70,6 +70,12 @@ export class PhotosService {
     await deletePhotoFiles(rows.map((row) => row.fileName));
   }
 
+  static async moveToFront(albumId: string, photoId: string): Promise<void> {
+    const rows = await PhotosService.listByAlbum(albumId);
+    const reordered = [photoId, ...rows.map((row) => row.id).filter((id) => id !== photoId)];
+    await PhotosService.reorder(albumId, reordered);
+  }
+
   static async reorder(albumId: string, orderedIds: string[]): Promise<void> {
     for (const [index, id] of orderedIds.entries()) {
       await db.update(photos).set({ sortOrder: index }).where(eq(photos.id, id)).run();

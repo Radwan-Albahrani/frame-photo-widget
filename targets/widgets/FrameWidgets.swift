@@ -321,21 +321,53 @@ struct PhotoWidgetView: View {
     entry.settings.showAlbumTitle || entry.settings.showDate
   }
 
+  private static func titleSize(for family: WidgetFamily) -> CGFloat {
+    switch family {
+    case .systemSmall: return 13
+    case .systemMedium: return 15
+    case .systemLarge: return 17
+    case .systemExtraLarge: return 19
+    default: return 15
+    }
+  }
+
+  private static func padding(for family: WidgetFamily) -> CGFloat {
+    family == .systemSmall ? 14 : 18
+  }
+
   var body: some View {
     content
-      .containerBackground(for: .widget) {
-        if let image = PhotoLoader.image(
-          fileName: entry.fileName, maxPixels: PhotoLoader.maxPixels(for: family)),
-          renderingMode == .fullColor
-        {
+      .containerBackground(for: .widget) { backdrop }
+  }
+
+  // what: one decode reused for both layers, so `fit` costs no extra memory
+  @ViewBuilder private var backdrop: some View {
+    if let image = PhotoLoader.image(
+      fileName: entry.fileName, maxPixels: PhotoLoader.maxPixels(for: family)),
+      renderingMode == .fullColor
+    {
+      if entry.settings.contentMode == .fit {
+        ZStack {
           image
             .resizable()
             .widgetAccentedRenderingMode(.fullColor)
-            .aspectRatio(contentMode: entry.settings.contentMode)
-        } else {
-          Color(white: 0.07)
+            .aspectRatio(contentMode: .fill)
+            .blur(radius: 24, opaque: true)
+            .overlay(Color.black.opacity(0.28))
+          image
+            .resizable()
+            .widgetAccentedRenderingMode(.fullColor)
+            .aspectRatio(contentMode: .fit)
         }
+      } else {
+        image
+          .resizable()
+          .widgetAccentedRenderingMode(.fullColor)
+          .aspectRatio(contentMode: .fill)
       }
+    } else {
+      Color(white: 0.07)
+    }
   }
 
   @ViewBuilder private var content: some View {
@@ -347,20 +379,20 @@ struct PhotoWidgetView: View {
         VStack(alignment: .leading, spacing: 2) {
           if entry.settings.showAlbumTitle {
             Text(entry.albumName)
-              .font(.system(size: family == .systemSmall ? 13 : 15, weight: .semibold))
+              .font(.system(size: Self.titleSize(for: family), weight: .semibold))
               .foregroundStyle(.white)
               .lineLimit(1)
               .shadow(color: .black.opacity(0.55), radius: 3, y: 1)
           }
           if entry.settings.showDate {
             Text(entry.date, style: .date)
-              .font(.system(size: family == .systemSmall ? 11 : 12, weight: .medium))
+              .font(.system(size: Self.titleSize(for: family) - 2, weight: .medium))
               .foregroundStyle(.white.opacity(0.85))
               .shadow(color: .black.opacity(0.55), radius: 3, y: 1)
           }
         }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 12)
+        .padding(.horizontal, Self.padding(for: family))
+        .padding(.bottom, Self.padding(for: family) - 2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
           LinearGradient(

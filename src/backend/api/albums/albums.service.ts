@@ -21,11 +21,12 @@ export class AlbumsService {
         photoCount: sql<number>`(
           SELECT count(*) FROM ${photos} WHERE ${photos.albumId} = ${albums.id}
         )`,
-        coverFileName: sql<string | null>`(
-          SELECT ${photos.fileName} FROM ${photos}
-          WHERE ${photos.albumId} = ${albums.id}
-          ORDER BY ${photos.sortOrder} ASC, ${photos.createdAt} ASC
-          LIMIT 1
+        coverFileName: sql<string | null>`COALESCE(
+          (SELECT ${photos.fileName} FROM ${photos} WHERE ${photos.id} = ${albums.coverPhotoId}),
+          (SELECT ${photos.fileName} FROM ${photos}
+           WHERE ${photos.albumId} = ${albums.id}
+           ORDER BY ${photos.sortOrder} ASC, ${photos.createdAt} ASC
+           LIMIT 1)
         )`,
       })
       .from(albums)

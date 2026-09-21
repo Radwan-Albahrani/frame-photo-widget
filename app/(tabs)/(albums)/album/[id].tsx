@@ -67,6 +67,28 @@ export default function AlbumScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, [selected, reload]);
 
+  const makeCover = useCallback(
+    async (photoId: string) => {
+      await AlbumsService.setCover(id, photoId);
+      setSelected([]);
+      await reload();
+      await WidgetService.sync();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    [id, reload]
+  );
+
+  const moveToFront = useCallback(
+    async (photoId: string) => {
+      await PhotosService.moveToFront(id, photoId);
+      setSelected([]);
+      await reload();
+      await WidgetService.sync();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    },
+    [id, reload]
+  );
+
   const deleteAlbum = useCallback(async () => {
     await PhotosService.removeAlbumPhotos(id);
     await AlbumsService.remove(id);
@@ -78,6 +100,7 @@ export default function AlbumScreen() {
   const gutter = 2;
   const cell = (width - gutter * (columns - 1)) / columns;
   const selecting = selected.length > 0;
+  const onlySelected = selected.length === 1 ? selected[0] : null;
 
   return (
     <>
@@ -153,6 +176,24 @@ export default function AlbumScreen() {
           />
         )}
         <Stack.Toolbar.Menu icon="ellipsis" tintColor={colors.accent}>
+          {onlySelected === null ? null : (
+            <Stack.Toolbar.MenuAction icon="star" onPress={() => void makeCover(onlySelected)}>
+              Use as cover
+            </Stack.Toolbar.MenuAction>
+          )}
+          {onlySelected === null ? null : (
+            <Stack.Toolbar.MenuAction
+              icon="arrow.up.to.line"
+              onPress={() => void moveToFront(onlySelected)}
+            >
+              Show first
+            </Stack.Toolbar.MenuAction>
+          )}
+          {selecting ? (
+            <Stack.Toolbar.MenuAction icon="xmark.circle" onPress={() => setSelected([])}>
+              Deselect
+            </Stack.Toolbar.MenuAction>
+          ) : null}
           <Stack.Toolbar.MenuAction
             icon="pencil"
             onPress={() => router.push({ pathname: "/name", params: { id } })}
