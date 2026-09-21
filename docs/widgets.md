@@ -238,9 +238,11 @@ long edge, which is what a portrait photo needs to fill a large or medium widget
 at ~0.9× native until rebuilt. Settings → Photo quality → Rebuild photo copies does that without
 photo-library access: it opens PHPicker empty, and every photo the user ticks is matched by asset
 identifier to the copies Frame already holds and rewritten in place. It must open empty because
-`preselectedAssetIdentifiers` returns *empty item providers* for assets left ticked — the picker
-assumes the app already has them — so preselection cannot deliver bytes to an app without library
-permission. The file request also has to name a concrete type the provider registered; the
+`preselectedAssetIdentifiers` returns *empty item providers* for pre-ticked assets — even after
+the user unticks and reticks one (measured) — so preselection can never deliver bytes to an app
+without library permission. Pre-ticking is therefore used only where it fits Apple's intent:
+the album's Add photos picker shows what is already there (Settings → Adding photos chooses
+whether that means this album, all of Frame, or nothing) and adds whatever is newly ticked. The file request also has to name a concrete type the provider registered; the
 abstract `public.image` is refused. An iPad extra-large widget wants ~1840 px and is the one frame
 still storage-limited.
 

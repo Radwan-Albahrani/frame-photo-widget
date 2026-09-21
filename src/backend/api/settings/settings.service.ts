@@ -7,12 +7,15 @@ export type PhotoFit = "fill" | "fit";
 
 export type WidgetSource = "snapshot" | "sqlite";
 
+export type PretickMode = "off" | "album" | "frame";
+
 export interface AppSettings {
   refreshMinutes: number;
   showAlbumTitle: boolean;
   showDate: boolean;
   fit: PhotoFit;
   widgetSource: WidgetSource;
+  pretick: PretickMode;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -21,6 +24,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showDate: false,
   fit: "fill",
   widgetSource: "snapshot",
+  pretick: "album",
 };
 
 const KEY = "app";

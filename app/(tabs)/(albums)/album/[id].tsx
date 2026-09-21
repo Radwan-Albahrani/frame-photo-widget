@@ -1,6 +1,5 @@
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
@@ -47,19 +46,10 @@ export default function AlbumScreen() {
   );
 
   const addPhotos = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsMultipleSelection: true,
-      quality: 1,
-      exif: false,
-    });
-    if (result.canceled) return;
     setImporting(true);
-    await PhotosService.add(
-      id,
-      result.assets.map((asset) => ({ uri: asset.uri, assetId: asset.assetId ?? null }))
-    );
+    const result = await PhotosService.editFromLibrary(id);
     setImporting(false);
+    if (result.added === 0 && result.rebuilt === 0) return;
     await reload();
     await WidgetService.sync();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

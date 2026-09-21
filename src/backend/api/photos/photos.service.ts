@@ -4,8 +4,17 @@ import { db } from "@backend/core/db/client";
 import { createId, now } from "@backend/core/db/ids";
 import { albums, photos, type PhotoRow } from "@backend/core/db/schema";
 import { nextSortOrder } from "@backend/core/db/sortOrder";
+import { SettingsService } from "@backend/api/settings/settings.service";
 import { reportFailure } from "@backend/core/log/logger";
-import { deletePhotoFiles, hashPhotoFiles, rebuildCopies, savePhoto } from "@native/photoStore";
+import {
+  adoptPick,
+  deletePhotoFiles,
+  discardPicks,
+  hashPhotoFiles,
+  pickPhotos,
+  savePhoto,
+  type RebuiltPhoto,
+} from "@native/photoStore";
 
 export class PhotosService {
   static async listByAlbum(albumId: string): Promise<PhotoRow[]> {
@@ -63,22 +72,95 @@ export class PhotosService {
   static async rebuildAllCopies(): Promise<{
     rebuilt: number;
     unlinked: number;
-    picked: number;
     unmatched: number;
     failures: string[];
   }> {
     const rows = await db.select().from(photos).all();
     const linked = rows.filter((row) => row.assetId !== null && row.assetId !== "");
-    const fileNamesByAsset: Record<string, string[]> = {};
-    for (const row of linked) {
+    try {
+      const result = await pickPhotos([], PhotosService.fileNamesByAsset(linked));
+      await PhotosService.applyRebuilt(result.rebuilt);
+      for (const failure of result.failures) {
+        reportFailure({ op: "photos.rebuildCopy", detail: failure }, new Error(failure));
+      }
+      return {
+        rebuilt: result.rebuilt.length,
+        unlinked: rows.length - linked.length,
+        unmatched: result.picks.length,
+        failures: result.failures,
+      };
+    } finally {
+      discardPicks();
+    }
+  }
+
+  static async editFromLibrary(
+    albumId: string
+  ): Promise<{ added: number; rebuilt: number; failures: string[] }> {
+    const { pretick } = await SettingsService.read();
+    const scope =
+      pretick === "frame"
+        ? await db.select().from(photos).all()
+        : pretick === "album"
+          ? await PhotosService.listByAlbum(albumId)
+          : [];
+    const linked = scope.filter((row) => row.assetId !== null && row.assetId !== "");
+    try {
+      const result = await pickPhotos(
+        linked.map((row) => row.assetId as string),
+        PhotosService.fileNamesByAsset(linked)
+      );
+      await PhotosService.applyRebuilt(result.rebuilt);
+      let order = await nextSortOrder(photos, photos.sortOrder, eq(photos.albumId, albumId));
+      let added = 0;
+      for (const pick of result.picks) {
+        const id = createId();
+        const uri = await adoptPick(pick.uri, `${id}.jpg`);
+        if (uri === null) continue;
+        await db
+          .insert(photos)
+          .values({
+            id,
+            albumId,
+            fileName: `${id}.jpg`,
+            assetId: pick.assetId,
+            contentHash: pick.contentHash,
+            width: pick.width,
+            height: pick.height,
+            bytes: pick.bytes,
+            sortOrder: order,
+            createdAt: now(),
+          })
+          .run();
+        order += 1;
+        added += 1;
+      }
+      if (added > 0) {
+        await db.update(albums).set({ updatedAt: now() }).where(eq(albums.id, albumId)).run();
+      }
+      for (const failure of result.failures) {
+        reportFailure(
+          { op: "photos.editFromLibrary", albumId, detail: failure },
+          new Error(failure)
+        );
+      }
+      return { added, rebuilt: result.rebuilt.length, failures: result.failures };
+    } finally {
+      discardPicks();
+    }
+  }
+
+  private static fileNamesByAsset(rows: PhotoRow[]): Record<string, string[]> {
+    const map: Record<string, string[]> = {};
+    for (const row of rows) {
       const assetId = row.assetId as string;
-      fileNamesByAsset[assetId] = [...(fileNamesByAsset[assetId] ?? []), row.fileName];
+      map[assetId] = [...(map[assetId] ?? []), row.fileName];
     }
-    const { rebuilt: saved, failures, unmatched } = await rebuildCopies(fileNamesByAsset);
-    for (const failure of failures) {
-      reportFailure({ op: "photos.rebuildCopy", detail: failure }, new Error(failure));
-    }
-    for (const copy of saved) {
+    return map;
+  }
+
+  private static async applyRebuilt(copies: RebuiltPhoto[]): Promise<void> {
+    for (const copy of copies) {
       await db
         .update(photos)
         .set({
@@ -90,13 +172,6 @@ export class PhotosService {
         .where(eq(photos.fileName, copy.fileName))
         .run();
     }
-    return {
-      rebuilt: saved.length,
-      unlinked: rows.length - linked.length,
-      picked: new Set(saved.map((copy) => copy.assetId)).size,
-      unmatched,
-      failures,
-    };
   }
 
   static async backfillHashes(): Promise<number> {

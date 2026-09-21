@@ -4,10 +4,11 @@ export interface RebuiltPhoto extends SavedPhoto {
   assetId: string;
 }
 
-export interface RebuildResult {
+export interface PickResult {
   rebuilt: RebuiltPhoto[];
+  picks: RebuiltPhoto[];
+  kept: string[];
   failures: string[];
-  unmatched: number;
 }
 
 export interface SavedPhoto {
@@ -34,11 +35,14 @@ interface FramePhotoStoreModule {
   getSnapshot(key: string): string | null;
   reloadWidgets(): void;
   placedWidgetCount(): Promise<number>;
-  rebuildCopies(
+  pickPhotos(
+    preselected: string[],
     fileNamesByAsset: Record<string, string[]>,
     maxPixels: number,
     quality: number
-  ): Promise<RebuildResult>;
+  ): Promise<PickResult>;
+  adoptPick(uri: string, fileName: string): Promise<string>;
+  discardPicks(): void;
   usedBytes(): Promise<number>;
 }
 

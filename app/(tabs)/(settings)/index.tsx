@@ -17,6 +17,7 @@ import {
   SettingsService,
   type AppSettings,
   type PhotoFit,
+  type PretickMode,
   type WidgetSource,
 } from "@backend/api/settings/settings.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
@@ -33,6 +34,20 @@ const INTERVALS = [
   { label: "Every 6 hours", value: 360 },
   { label: "Daily", value: 1440 },
 ];
+
+const PRETICK: { label: string; value: PretickMode }[] = [
+  { label: "Off", value: "off" },
+  { label: "This album", value: "album" },
+  { label: "All of Frame", value: "frame" },
+];
+
+const PRETICK_FOOTER: Record<PretickMode, string> = {
+  off: "The picker opens empty every time, so the same photo can be added twice, anywhere.",
+  album:
+    "Photos already in the album you are adding to show up ticked, so you can see what you are missing. A photo can still be added to a second album.",
+  frame:
+    "Every photo anywhere in Frame shows up ticked, so you can see what you have never added. A photo already in one album cannot be added to another this way.",
+};
 
 const SOURCE_FOOTER: Record<WidgetSource, string> = {
   snapshot: "The widget reads a small mirrored snapshot. Most robust.",
@@ -127,6 +142,23 @@ export default function SettingsScreen() {
           </Picker>
         </Section>
 
+        <Section
+          title="Adding photos"
+          footer={<NativeText>{PRETICK_FOOTER[settings.pretick]}</NativeText>}
+        >
+          <Picker
+            label="Show as ticked"
+            selection={settings.pretick}
+            onSelectionChange={(value: PretickMode) => update({ pretick: value })}
+          >
+            {PRETICK.map((option) => (
+              <NativeText key={option.value} modifiers={[tag(option.value)]}>
+                {option.label}
+              </NativeText>
+            ))}
+          </Picker>
+        </Section>
+
         <Section title="Overlay">
           <Toggle
             label="Show album name"
@@ -190,7 +222,7 @@ export default function SettingsScreen() {
           footer={
             <NativeText>
               {rebuild ??
-                "Opens the photo picker. Select the photos you already added, tap Done, and Frame rewrites its copies of them at the current size, in place. Frame never gets access to your photo library."}
+                "Opens the photo picker empty: iOS only hands over photos you tick fresh, never ones shown pre-ticked. Select the photos you already added, tap Done, and Frame rewrites its copies of them at the current size, in place. Frame never gets access to your photo library."}
             </NativeText>
           }
         >

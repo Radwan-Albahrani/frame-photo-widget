@@ -72,21 +72,30 @@ private func downsample(url: URL, maxPixels: Int) throws -> UIImage {
   return UIImage(cgImage: thumbnail)
 }
 
-private func store(_ image: UIImage, fileName: String, quality: Double) throws -> [String: Any] {
+private func picksDirectory() throws -> URL {
+  let url = FileManager.default.temporaryDirectory.appendingPathComponent("frame-picks", isDirectory: true)
+  try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+  return url
+}
+
+private func write(_ image: UIImage, to destination: URL, quality: Double) throws -> [String: Any] {
   guard let data = image.jpegData(compressionQuality: CGFloat(quality)) else {
     throw StoreError.encodingFailed
   }
-  let destination = try photosDirectory().appendingPathComponent(fileName)
   try data.write(to: destination, options: .atomic)
   let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
   return [
-    "fileName": fileName,
+    "fileName": destination.lastPathComponent,
     "uri": destination.absoluteString,
     "width": Int(image.size.width * image.scale),
     "height": Int(image.size.height * image.scale),
     "bytes": data.count,
     "contentHash": digest,
   ]
+}
+
+private func store(_ image: UIImage, fileName: String, quality: Double) throws -> [String: Any] {
+  try write(image, to: try photosDirectory().appendingPathComponent(fileName), quality: quality)
 }
 
 // what: PHPicker refuses the abstract public.image, so the request names the concrete type the
@@ -156,10 +165,11 @@ public final class FramePhotoStoreModule: Module {
       return try store(image, fileName: fileName, quality: quality)
     }
 
-    // what: PHPicker hands back empty item providers for preselected assets, so the picker opens
-    // empty and the photos the user ticks are matched to the copies Frame already holds
-    AsyncFunction("rebuildCopies") {
-      (fileNamesByAsset: [String: [String]], maxPixels: Int, quality: Double) -> [String: Any] in
+    // what: a pre-ticked asset comes back with an empty item provider even after an untick and
+    // retick, so it is reported as kept; only a photo that was not pre-ticked delivers bytes
+    AsyncFunction("pickPhotos") {
+      (preselected: [String], fileNamesByAsset: [String: [String]], maxPixels: Int, quality: Double)
+        -> [String: Any] in
       let results: [PHPickerResult] = try await withCheckedThrowingContinuation { continuation in
         DispatchQueue.main.async {
           guard let presenter = self.appContext?.utilities?.currentViewController() else {
@@ -170,6 +180,7 @@ public final class FramePhotoStoreModule: Module {
           configuration.filter = .images
           configuration.selectionLimit = 0
           configuration.preferredAssetRepresentationMode = .current
+          configuration.preselectedAssetIdentifiers = preselected
           let picker = PHPickerViewController(configuration: configuration)
           let session = PickerSession(continuation)
           self.pickerSession = session
@@ -179,29 +190,49 @@ public final class FramePhotoStoreModule: Module {
       }
       self.pickerSession = nil
       var rebuilt: [[String: Any]] = []
+      var picks: [[String: Any]] = []
+      var kept: [String] = []
       var failures: [String] = []
-      var unmatched = 0
       for result in results {
-        guard let assetId = result.assetIdentifier, let fileNames = fileNamesByAsset[assetId]
-        else {
-          unmatched += 1
+        guard let assetId = result.assetIdentifier else { continue }
+        if result.itemProvider.registeredTypeIdentifiers.isEmpty {
+          kept.append(assetId)
           continue
         }
         do {
           let copy = try await copiedFile(from: result.itemProvider)
           defer { try? FileManager.default.removeItem(at: copy) }
           let image = try downsample(url: copy, maxPixels: maxPixels)
-          for fileName in fileNames {
-            var saved = try store(image, fileName: fileName, quality: quality)
+          if let fileNames = fileNamesByAsset[assetId] {
+            for fileName in fileNames {
+              var saved = try store(image, fileName: fileName, quality: quality)
+              saved["assetId"] = assetId
+              rebuilt.append(saved)
+            }
+          } else {
+            let destination = try picksDirectory().appendingPathComponent(UUID().uuidString + ".jpg")
+            var saved = try write(image, to: destination, quality: quality)
             saved["assetId"] = assetId
-            rebuilt.append(saved)
+            picks.append(saved)
           }
         } catch {
-          let types = result.itemProvider.registeredTypeIdentifiers.joined(separator: ",")
-          failures.append("\(assetId.prefix(8)) [\(types)]: \(error.localizedDescription)")
+          failures.append("\(assetId.prefix(8)): \(error.localizedDescription)")
         }
       }
-      return ["rebuilt": rebuilt, "failures": failures, "unmatched": unmatched]
+      return ["rebuilt": rebuilt, "picks": picks, "kept": kept, "failures": failures]
+    }
+
+    AsyncFunction("adoptPick") { (uri: String, fileName: String) -> String in
+      guard let source = URL(string: uri) else { throw StoreError.unreadableSource(uri) }
+      let destination = try photosDirectory().appendingPathComponent(fileName)
+      try? FileManager.default.removeItem(at: destination)
+      try FileManager.default.moveItem(at: source, to: destination)
+      return destination.absoluteString
+    }
+
+    Function("discardPicks") { () -> Void in
+      let url = FileManager.default.temporaryDirectory.appendingPathComponent("frame-picks", isDirectory: true)
+      try? FileManager.default.removeItem(at: url)
     }
 
     AsyncFunction("deletePhotos") { (fileNames: [String]) -> Int in

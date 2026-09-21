@@ -1,11 +1,11 @@
 import native, {
-  type RebuildResult,
+  type PickResult,
   type RebuiltPhoto,
   type SavedPhoto,
 } from "@/modules/frame-photo-store";
 import { WIDGET_THUMBNAIL_MAX_PIXELS, WIDGET_THUMBNAIL_QUALITY } from "@const/identifiers";
 
-export type { RebuildResult, RebuiltPhoto, SavedPhoto };
+export type { PickResult, RebuiltPhoto, SavedPhoto };
 
 export const isPhotoStoreAvailable = native != null;
 
@@ -49,17 +49,26 @@ export function reloadWidgets(): void {
   native?.reloadWidgets();
 }
 
-export async function rebuildCopies(
+export async function pickPhotos(
+  preselected: string[],
   fileNamesByAsset: Record<string, string[]>
-): Promise<RebuildResult> {
-  if (native == null || Object.keys(fileNamesByAsset).length === 0) {
-    return { rebuilt: [], failures: [], unmatched: 0 };
-  }
-  return native.rebuildCopies(
+): Promise<PickResult> {
+  if (native == null) return { rebuilt: [], picks: [], kept: [], failures: [] };
+  return native.pickPhotos(
+    preselected,
     fileNamesByAsset,
     WIDGET_THUMBNAIL_MAX_PIXELS,
     WIDGET_THUMBNAIL_QUALITY
   );
+}
+
+export async function adoptPick(uri: string, fileName: string): Promise<string | null> {
+  if (native == null) return null;
+  return native.adoptPick(uri, fileName);
+}
+
+export function discardPicks(): void {
+  native?.discardPicks();
 }
 
 export async function placedWidgetCount(): Promise<number> {
