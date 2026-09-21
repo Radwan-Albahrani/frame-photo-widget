@@ -1,8 +1,5 @@
 import native, { type SavedPhoto } from "@/modules/frame-photo-store";
-import {
-  WIDGET_THUMBNAIL_MAX_PIXELS,
-  WIDGET_THUMBNAIL_QUALITY,
-} from "@const/identifiers";
+import { WIDGET_THUMBNAIL_MAX_PIXELS, WIDGET_THUMBNAIL_QUALITY } from "@const/identifiers";
 
 export type { SavedPhoto };
 

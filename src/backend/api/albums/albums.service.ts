@@ -9,8 +9,8 @@ export interface AlbumWithCount extends AlbumRow {
 }
 
 export class AlbumsService {
-  static list(): AlbumWithCount[] {
-    const rows = db
+  static async list(): Promise<AlbumWithCount[]> {
+    const rows = await db
       .select({
         id: albums.id,
         name: albums.name,
@@ -29,13 +29,14 @@ export class AlbumsService {
     return rows as AlbumWithCount[];
   }
 
-  static byId(id: string): AlbumRow | null {
-    return db.select().from(albums).where(eq(albums.id, id)).get() ?? null;
+  static async byId(id: string): Promise<AlbumRow | null> {
+    const row = await db.select().from(albums).where(eq(albums.id, id)).get();
+    return row ?? null;
   }
 
-  static create(name: string): AlbumRow {
+  static async create(name: string): Promise<AlbumRow> {
     const timestamp = now();
-    const highest = db
+    const highest = await db
       .select({ value: sql<number>`coalesce(max(${albums.sortOrder}), -1)` })
       .from(albums)
       .get();
@@ -47,35 +48,38 @@ export class AlbumsService {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    db.insert(albums).values(row).run();
+    await db.insert(albums).values(row).run();
     return row;
   }
 
-  static rename(id: string, name: string): void {
-    db.update(albums)
+  static async rename(id: string, name: string): Promise<void> {
+    await db
+      .update(albums)
       .set({ name: name.trim(), updatedAt: now() })
       .where(eq(albums.id, id))
       .run();
   }
 
-  static setCover(id: string, photoId: string | null): void {
-    db.update(albums)
+  static async setCover(id: string, photoId: string | null): Promise<void> {
+    await db
+      .update(albums)
       .set({ coverPhotoId: photoId, updatedAt: now() })
       .where(eq(albums.id, id))
       .run();
   }
 
-  static remove(id: string): void {
-    db.delete(albums).where(eq(albums.id, id)).run();
+  static async remove(id: string): Promise<void> {
+    await db.delete(albums).where(eq(albums.id, id)).run();
   }
 
-  static reorder(orderedIds: string[]): void {
+  static async reorder(orderedIds: string[]): Promise<void> {
     const timestamp = now();
-    orderedIds.forEach((id, index) => {
-      db.update(albums)
+    for (const [index, id] of orderedIds.entries()) {
+      await db
+        .update(albums)
         .set({ sortOrder: index, updatedAt: timestamp })
         .where(eq(albums.id, id))
         .run();
-    });
+    }
   }
 }

@@ -28,16 +28,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
 const KEY = "app";
 
 export class SettingsService {
-  static read(): AppSettings {
-    const row = db.select().from(settings).where(eq(settings.key, KEY)).get();
+  static async read(): Promise<AppSettings> {
+    const row = await db.select().from(settings).where(eq(settings.key, KEY)).get();
     if (row === undefined) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(row.value) as Partial<AppSettings>;
     return { ...DEFAULT_SETTINGS, ...parsed };
   }
 
-  static write(next: Partial<AppSettings>): AppSettings {
-    const merged = { ...SettingsService.read(), ...next };
-    db.insert(settings)
+  static async write(next: Partial<AppSettings>): Promise<AppSettings> {
+    const current = await SettingsService.read();
+    const merged = { ...current, ...next };
+    await db
+      .insert(settings)
       .values({ key: KEY, value: JSON.stringify(merged), updatedAt: now() })
       .onConflictDoUpdate({
         target: settings.key,

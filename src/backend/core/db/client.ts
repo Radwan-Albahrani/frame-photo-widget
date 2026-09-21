@@ -1,7 +1,6 @@
 import { open, type DB } from "@op-engineering/op-sqlite";
 import { drizzle } from "drizzle-orm/op-sqlite";
 import { DATABASE_NAME } from "@const/identifiers";
-import * as schema from "./schema";
 
 let handle: DB | null = null;
 
@@ -10,7 +9,7 @@ function connection(): DB {
   return handle;
 }
 
-export const db = drizzle(connection(), { schema });
+export const db = drizzle(connection());
 
 export function databasePath(): string {
   return connection().getDbPath();

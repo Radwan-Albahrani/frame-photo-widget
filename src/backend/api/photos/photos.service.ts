@@ -5,7 +5,7 @@ import { albums, photos, type PhotoRow } from "@backend/core/db/schema";
 import { deletePhotoFiles, savePhoto } from "@native/photoStore";
 
 export class PhotosService {
-  static listByAlbum(albumId: string): PhotoRow[] {
+  static async listByAlbum(albumId: string): Promise<PhotoRow[]> {
     return db
       .select()
       .from(photos)
@@ -14,8 +14,8 @@ export class PhotosService {
       .all();
   }
 
-  static countByAlbum(albumId: string): number {
-    const row = db
+  static async countByAlbum(albumId: string): Promise<number> {
+    const row = await db
       .select({ value: sql<number>`count(*)` })
       .from(photos)
       .where(eq(photos.albumId, albumId))
@@ -24,7 +24,7 @@ export class PhotosService {
   }
 
   static async add(albumId: string, sourceUris: string[]): Promise<PhotoRow[]> {
-    const highest = db
+    const highest = await db
       .select({ value: sql<number>`coalesce(max(${photos.sortOrder}), -1)` })
       .from(photos)
       .where(eq(photos.albumId, albumId))
@@ -46,34 +46,34 @@ export class PhotosService {
         sortOrder: order,
         createdAt: now(),
       };
-      db.insert(photos).values(row).run();
+      await db.insert(photos).values(row).run();
       created.push(row);
       order += 1;
     }
 
     if (created.length > 0) {
-      db.update(albums).set({ updatedAt: now() }).where(eq(albums.id, albumId)).run();
+      await db.update(albums).set({ updatedAt: now() }).where(eq(albums.id, albumId)).run();
     }
     return created;
   }
 
   static async remove(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
-    const rows = db.select().from(photos).where(inArray(photos.id, ids)).all();
-    db.delete(photos).where(inArray(photos.id, ids)).run();
+    const rows = await db.select().from(photos).where(inArray(photos.id, ids)).all();
+    await db.delete(photos).where(inArray(photos.id, ids)).run();
     await deletePhotoFiles(rows.map((row) => row.fileName));
   }
 
   static async removeAlbumPhotos(albumId: string): Promise<void> {
-    const rows = db.select().from(photos).where(eq(photos.albumId, albumId)).all();
-    db.delete(photos).where(eq(photos.albumId, albumId)).run();
+    const rows = await db.select().from(photos).where(eq(photos.albumId, albumId)).all();
+    await db.delete(photos).where(eq(photos.albumId, albumId)).run();
     await deletePhotoFiles(rows.map((row) => row.fileName));
   }
 
-  static reorder(albumId: string, orderedIds: string[]): void {
-    orderedIds.forEach((id, index) => {
-      db.update(photos).set({ sortOrder: index }).where(eq(photos.id, id)).run();
-    });
-    db.update(albums).set({ updatedAt: now() }).where(eq(albums.id, albumId)).run();
+  static async reorder(albumId: string, orderedIds: string[]): Promise<void> {
+    for (const [index, id] of orderedIds.entries()) {
+      await db.update(photos).set({ sortOrder: index }).where(eq(photos.id, id)).run();
+    }
+    await db.update(albums).set({ updatedAt: now() }).where(eq(albums.id, albumId)).run();
   }
 }

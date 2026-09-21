@@ -29,7 +29,9 @@ export default function TabsLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color }) => <SymbolView name="gearshape.fill" tintColor={color} size={24} />,
+          tabBarIcon: ({ color }) => (
+            <SymbolView name="gearshape.fill" tintColor={color} size={24} />
+          ),
         }}
       />
     </Tabs>

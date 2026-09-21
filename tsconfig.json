@@ -11,7 +11,8 @@
       "@const/*": ["./src/const/*"],
       "@i18n": ["./src/i18n"],
       "@i18n/*": ["./src/i18n/*"]
-    }
+    },
+    "types": ["node", "bun-types"]
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

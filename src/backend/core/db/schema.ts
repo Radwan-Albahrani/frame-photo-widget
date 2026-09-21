@@ -23,9 +23,7 @@ export const photos = sqliteTable(
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: integer("created_at").notNull(),
   },
-  (table) => [
-    index("photos_album_order").on(table.albumId, table.sortOrder),
-  ]
+  (table) => [index("photos_album_order").on(table.albumId, table.sortOrder)]
 );
 
 export const settings = sqliteTable("settings", {

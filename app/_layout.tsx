@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { migrate } from "@backend/core/db/client";
 import { WidgetService } from "@backend/api/widget/widget.service";
+import { bestEffort } from "@backend/core/log/logger";
 import { useTheme } from "@ui/useTheme";
 
 export default function RootLayout() {
@@ -12,8 +13,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     migrate();
-    WidgetService.sync();
-    setReady(true);
+    bestEffort(WidgetService.sync(), { op: "widget.syncOnLaunch", stage: "launch" }).finally(() =>
+      setReady(true)
+    );
   }, []);
 
   if (!ready) return null;
