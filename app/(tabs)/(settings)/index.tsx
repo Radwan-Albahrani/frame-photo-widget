@@ -1,4 +1,5 @@
 import {
+  Button as NativeButton,
   Form,
   Host,
   LabeledContent,
@@ -8,6 +9,7 @@ import {
   Toggle,
 } from "@expo/ui/swift-ui";
 import { pickerStyle, tag } from "@expo/ui/swift-ui/modifiers";
+import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
@@ -21,6 +23,7 @@ import { WidgetService } from "@backend/api/widget/widget.service";
 import { usedBytes } from "@native/photoStore";
 
 const INTERVALS = [
+  { label: "5 minutes", value: 5 },
   { label: "15 minutes", value: 15 },
   { label: "Hourly", value: 60 },
   { label: "Every 6 hours", value: 360 },
@@ -35,6 +38,7 @@ const SOURCE_FOOTER: Record<WidgetSource, string> = {
 export default function SettingsScreen() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [bytes, setBytes] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const reload = useCallback(async () => {
     setSettings(await SettingsService.read());
@@ -46,6 +50,13 @@ export default function SettingsScreen() {
       void reload();
     }, [reload])
   );
+
+  const refreshWidgets = useCallback(async () => {
+    setRefreshing(true);
+    await WidgetService.sync();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setRefreshing(false);
+  }, []);
 
   const update = useCallback((next: Partial<AppSettings>) => {
     void (async () => {
@@ -104,6 +115,22 @@ export default function SettingsScreen() {
             <NativeText>2. Tap Edit, then Add Widget, and find Frame.</NativeText>
             <NativeText>3. Pick a size and place it.</NativeText>
             <NativeText>4. Hold the widget, tap Edit Widget, and choose an album.</NativeText>
+          </Section>
+
+          <Section
+            title="Refresh"
+            footer={
+              <NativeText>
+                Widgets change photos on their own, even when Frame is closed. Use this after adding
+                photos if you want the change right now.
+              </NativeText>
+            }
+          >
+            <NativeButton
+              label={refreshing ? "Updating…" : "Update widgets now"}
+              systemImage="arrow.clockwise"
+              onPress={() => void refreshWidgets()}
+            />
           </Section>
 
           <Section title="Storage">

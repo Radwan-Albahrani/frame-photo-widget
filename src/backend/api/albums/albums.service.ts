@@ -18,12 +18,17 @@ export class AlbumsService {
         sortOrder: albums.sortOrder,
         createdAt: albums.createdAt,
         updatedAt: albums.updatedAt,
-        photoCount: sql<number>`count(${photos.id})`,
-        coverFileName: sql<string | null>`min(${photos.fileName})`,
+        photoCount: sql<number>`(
+          SELECT count(*) FROM ${photos} WHERE ${photos.albumId} = ${albums.id}
+        )`,
+        coverFileName: sql<string | null>`(
+          SELECT ${photos.fileName} FROM ${photos}
+          WHERE ${photos.albumId} = ${albums.id}
+          ORDER BY ${photos.sortOrder} ASC, ${photos.createdAt} ASC
+          LIMIT 1
+        )`,
       })
       .from(albums)
-      .leftJoin(photos, eq(photos.albumId, albums.id))
-      .groupBy(albums.id)
       .orderBy(asc(albums.sortOrder), asc(albums.createdAt))
       .all();
     return rows as AlbumWithCount[];

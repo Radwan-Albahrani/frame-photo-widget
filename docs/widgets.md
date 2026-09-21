@@ -92,6 +92,26 @@ The album picker in the widget's edit sheet is an **`AppIntentConfiguration`**, 
 Each placed widget holds its own configuration, which is what makes "three widgets, three different
 albums" work with one widget kind.
 
+## Rotation must keep working with the app CLOSED — and it does
+
+This is the behaviour the app exists for, so it is worth being precise about why it holds.
+
+A widget never runs the app. WidgetKit asks the *extension* for a `Timeline`, which is a list of
+entries each carrying a future `date`. **iOS then advances through those entries on its own**,
+rendering each one at its date, with the app terminated and the extension not even running. Nothing
+in Frame's rotation path needs the app to be alive:
+
+- `PhotoProvider.entries(for:)` builds one entry per photo, spaced `refreshMinutes` apart, and keeps
+  going until the timeline covers at least `targetSpanSeconds` (6 hours) or `maxEntries` (120),
+  whichever comes first. A 5-minute interval therefore hands iOS ~72 pre-dated entries in one go.
+- Each entry holds only a **file name**, so a 120-entry timeline is a few KB.
+- When the last entry is reached, the `.after` policy makes WidgetKit ask the extension for a fresh
+  timeline. That runs the *extension*, reading the App Group — still no app launch.
+
+`reloadAllTimelines()` is therefore only needed when the *data* changed (a photo added, an album
+renamed). Settings → **Update widgets now** exposes that manually, and it is the right thing to tap
+after importing photos if you do not want to wait.
+
 ## Rotation is entries, not reloads
 
 **A widget gets roughly 40–70 reloads per day**, i.e. one every 15–60 minutes, and the system —

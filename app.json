@@ -44,6 +44,19 @@
             "enableSceneSupport": true
           }
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#070708",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#070708"
+          }
+        }
       ]
     ],
     "experiments": {
@@ -60,6 +73,7 @@
     },
     "updates": {
       "url": "https://u.expo.dev/615bc44b-e241-40cf-bcaa-fd1fd2d5dcb4"
-    }
+    },
+    "icon": "./assets/icon.png"
   }
 }

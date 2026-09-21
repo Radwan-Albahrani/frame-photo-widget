@@ -238,7 +238,9 @@ struct PhotoEntry: TimelineEntry {
 }
 
 struct PhotoProvider: AppIntentTimelineProvider {
-  private static let maxEntries = 24
+  // what: entries are strings, so a long timeline costs bytes and needs no reload to advance
+  private static let maxEntries = 120
+  private static let targetSpanSeconds: TimeInterval = 6 * 3600
 
   func placeholder(in context: Context) -> PhotoEntry {
     let album = FrameStore.albums().first
@@ -279,7 +281,8 @@ struct PhotoProvider: AppIntentTimelineProvider {
     let ordered = shuffled ? album.photos.shuffled() : album.photos
     let interval = TimeInterval(max(1, settings.refreshMinutes) * 60)
     let start = Date()
-    let count = min(Self.maxEntries, max(1, ordered.count))
+    let stepsForSpan = Int(Self.targetSpanSeconds / interval) + 1
+    let count = min(Self.maxEntries, max(ordered.count, stepsForSpan))
 
     return (0..<count).map { index in
       PhotoEntry(
