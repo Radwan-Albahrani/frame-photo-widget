@@ -190,6 +190,13 @@ one was caused by a SpringBoard restart the test itself performed, and one match
 succeeded with 1 entries` in the extension's log, which is the snapshot path, not a timeline.
 Sample the pixels, keep your hands off the device, and read chronod rather than the extension.
 
+Re-run after the JPEG/frame change (small widget, fill, every 5 minutes, app not running):
+
+```
+22:09:50  before 134-131-124   app=0
+22:10:53  after  123-120-112   app=0   192,757 of 230,400 pixels changed  <- rotated on the 22:10 slot
+```
+
 ## Sharpness: decode to the widget's own frame, hand WidgetKit a JPEG, spend a byte budget
 
 Three measured facts decide how sharp a widget can be, and none of them is documented by Apple.
