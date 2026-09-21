@@ -1,0 +1,19 @@
+{
+  // Frame's landing page + privacy policy.
+  //
+  // The two HTML pages are rendered by the Worker itself (src/index.ts) so it
+  // controls content-type, cache and security headers. ./public holds the only
+  // real static files — the App Store screenshots under /shots — which the
+  // asset server delivers directly; anything it does not match falls through to
+  // the Worker's fetch handler, which serves / and /privacy and a 404.
+  "name": "frame-landing",
+  "compatibility_date": "2025-09-01",
+  "main": "src/index.ts",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

@@ -2,6 +2,7 @@
 module.exports = (config) => ({
   type: "widget",
   name: "FrameWidgets",
+  bundleIdentifier: ".widget",
   deploymentTarget: "18.0",
   frameworks: ["WidgetKit", "SwiftUI", "AppIntents"],
   entitlements: {

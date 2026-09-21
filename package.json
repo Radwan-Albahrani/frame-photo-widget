@@ -23,7 +23,11 @@
     "db:generate": "drizzle-kit generate && bun run db:bundle",
     "db:bundle": "bun run scripts/bundleMigrations.ts",
     "gates": "bun run types:check && bun run lint && bun run lint:silent:branch && bun run format && bun run test",
-    "ios:device": "bun run prebuild && expo run:ios --device --port 8082"
+    "ios:device": "bun run prebuild && expo run:ios --device --port 8082",
+    "release:ios": "bash scripts/ship-ios.sh",
+    "release:ios:submit": "bash scripts/ship-ios.sh --skip-upload",
+    "deploy:testflight:local": "bash scripts/ship-ios.sh --no-review",
+    "deploy:upload": "bash scripts/ship-ios.sh --skip-build --no-review"
   },
   "dependencies": {
     "@expo/ui": "~57.0.19",
