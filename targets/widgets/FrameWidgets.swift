@@ -407,13 +407,24 @@ struct PhotoEntry: TimelineEntry {
 struct PhotoProvider: AppIntentTimelineProvider {
   // what: entries are strings, so a long timeline costs bytes and needs no reload to advance
   private static let maxEntries = 120
-  // what: iOS may not ask a killed app for a new timeline for hours, so schedule days ahead
-  private static let targetSpanSeconds: TimeInterval = 48 * 3600
+  // what: WidgetKit will not reload faster than roughly every 5 minutes
+  private static let minimumIntervalMinutes = 5
 
-  /// Deterministic shuffle: the same album always shuffles the same way, so a reload
-  /// does not hand the viewer a brand-new random photo.
+  /// Stable across processes, unlike `String.hashValue`, which Swift seeds randomly per
+  /// launch — that made every relaunch of the extension reshuffle and jump the rotation.
+  private static func stableSeed(_ text: String) -> UInt64 {
+    var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+    for byte in text.utf8 {
+      hash ^= UInt64(byte)
+      hash = hash &* 0x100_0000_01b3
+    }
+    return hash | 1
+  }
+
+  /// Shuffle that is fixed within one pass through an album and different on the next,
+  /// so a reload never hands the viewer a brand-new photo mid-pass.
   private static func shuffled(_ photos: [String], seed: String) -> [String] {
-    var state = UInt64(abs(seed.hashValue)) | 1
+    var state = stableSeed(seed)
     var working = photos
     var index = working.count - 1
     while index > 0 {
@@ -467,28 +478,41 @@ struct PhotoProvider: AppIntentTimelineProvider {
       ]
     }
 
-    let interval = TimeInterval(max(1, settings.refreshMinutes) * 60)
+    let minutes = max(Self.minimumIntervalMinutes, settings.refreshMinutes)
+    let interval = TimeInterval(minutes * 60)
     // what: anchoring to absolute time keeps a reload from restarting the rotation
     let slot = (Date().timeIntervalSince1970 / interval).rounded(.down)
     let slotStart = Date(timeIntervalSince1970: slot * interval)
 
-    let shuffled = configuration.shuffle || settings.shuffle
-    let ordered = shuffled ? Self.shuffled(album.photos, seed: album.id) : album.photos
-    let stepsForSpan = Int(Self.targetSpanSeconds / interval) + 1
-    let count = min(Self.maxEntries, max(ordered.count, stepsForSpan))
-    let offset = Int(slot.truncatingRemainder(dividingBy: Double(ordered.count)))
+    let useShuffle = configuration.shuffle || settings.shuffle
+    let total = album.photos.count
+    let firstSlot = Int(slot)
+    var orders: [Int: [String]] = [:]
+    var built: [PhotoEntry] = []
+    built.reserveCapacity(Self.maxEntries)
 
-    return (0..<count).map { index in
-      let position = (offset + index) % ordered.count
-      return PhotoEntry(
-        date: slotStart.addingTimeInterval(TimeInterval(index) * interval),
-        fileName: ordered[position],
-        albumId: album.id,
-        albumName: album.name,
-        position: position,
-        total: ordered.count,
-        settings: settings)
+    for index in 0..<Self.maxEntries {
+      let absolute = firstSlot + index
+      let cycle = Int(floor(Double(absolute) / Double(total)))
+      let position = ((absolute % total) + total) % total
+      let ordered: [String]
+      if let cached = orders[cycle] {
+        ordered = cached
+      } else {
+        ordered = useShuffle ? Self.shuffled(album.photos, seed: "\(album.id)#\(cycle)") : album.photos
+        orders[cycle] = ordered
+      }
+      built.append(
+        PhotoEntry(
+          date: slotStart.addingTimeInterval(TimeInterval(index) * interval),
+          fileName: ordered[position],
+          albumId: album.id,
+          albumName: album.name,
+          position: position,
+          total: total,
+          settings: settings))
     }
+    return built
   }
 }
 

@@ -234,10 +234,15 @@ Rotation is carried entirely by pre-built timeline entries, so it does not need 
 wake up and it does not spend the reload budget. Two values decide how long it survives without
 iOS asking for anything:
 
-- `targetSpanSeconds` (48 h) — how far ahead entries are scheduled. At `maxEntries = 120` an hourly
-  widget gets 49 entries, about two days; a five-minute widget fills all 120 slots, about ten hours.
-  It was 6 h, which meant an hourly widget ran out of entries after six and then sat on the last
-  photo until something reloaded it — exactly the "it only changed when I opened the app" symptom.
+- `targetSpanSeconds` (24 h) — how far ahead entries are scheduled; Apple advises against queueing
+  more than a day at a time. At `maxEntries = 120` that is 25 entries hourly (25 h of rotation) and
+  120 entries at five minutes (10 h). It was 6 h, which meant an hourly widget ran out of entries
+  after six and then sat on the last photo until something reloaded it — exactly the "it only
+  changed when I opened the app" symptom.
+
+  The reload budget is roughly 40-70 a day and is spent only on *reloads*, never on advancing
+  through entries that already exist. At these spans the widget asks for a new timeline between
+  0.04 and 2.4 times a day, so rotation costs almost none of it.
 - `.atEnd` — WidgetKit asks for the next timeline as soon as the final entry is consumed. `.after(date)`
   defers that request to a timestamp, which iOS is free to honour late on a device where the app is
   never launched.
