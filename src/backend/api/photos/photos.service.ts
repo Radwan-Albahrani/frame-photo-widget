@@ -4,7 +4,7 @@ import { db } from "@backend/core/db/client";
 import { createId, now } from "@backend/core/db/ids";
 import { albums, photos, type PhotoRow } from "@backend/core/db/schema";
 import { nextSortOrder } from "@backend/core/db/sortOrder";
-import { deletePhotoFiles, hashPhotoFiles, savePhoto } from "@native/photoStore";
+import { deletePhotoFiles, hashPhotoFiles, rebuildCopies, savePhoto } from "@native/photoStore";
 
 export class PhotosService {
   static async listByAlbum(albumId: string): Promise<PhotoRow[]> {
@@ -57,6 +57,34 @@ export class PhotosService {
       await db.update(albums).set({ updatedAt: now() }).where(eq(albums.id, albumId)).run();
     }
     return created;
+  }
+
+  static async rebuildAllCopies(): Promise<{ rebuilt: number; unlinked: number; picked: number }> {
+    const rows = await db.select().from(photos).all();
+    const linked = rows.filter((row) => row.assetId !== null && row.assetId !== "");
+    const fileNamesByAsset: Record<string, string[]> = {};
+    for (const row of linked) {
+      const assetId = row.assetId as string;
+      fileNamesByAsset[assetId] = [...(fileNamesByAsset[assetId] ?? []), row.fileName];
+    }
+    const saved = await rebuildCopies(fileNamesByAsset);
+    for (const copy of saved) {
+      await db
+        .update(photos)
+        .set({
+          width: copy.width,
+          height: copy.height,
+          bytes: copy.bytes,
+          contentHash: copy.contentHash,
+        })
+        .where(eq(photos.fileName, copy.fileName))
+        .run();
+    }
+    return {
+      rebuilt: saved.length,
+      unlinked: rows.length - linked.length,
+      picked: new Set(saved.map((copy) => copy.assetId)).size,
+    };
   }
 
   static async backfillHashes(): Promise<number> {

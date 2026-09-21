@@ -1,6 +1,7 @@
 import CryptoKit
 import ExpoModulesCore
 import ImageIO
+import PhotosUI
 import UIKit
 import UniformTypeIdentifiers
 import WidgetKit
@@ -12,6 +13,7 @@ private enum StoreError: Error, LocalizedError {
   case missingContainer
   case unreadableSource(String)
   case encodingFailed
+  case noPresenter
 
   var errorDescription: String? {
     switch self {
@@ -21,6 +23,8 @@ private enum StoreError: Error, LocalizedError {
       return "Could not read an image at \(uri)."
     case .encodingFailed:
       return "Could not encode the downsampled image as JPEG."
+    case .noPresenter:
+      return "No view controller is available to present the photo picker."
     }
   }
 }
@@ -68,7 +72,60 @@ private func downsample(url: URL, maxPixels: Int) throws -> UIImage {
   return UIImage(cgImage: thumbnail)
 }
 
+private func store(_ image: UIImage, fileName: String, quality: Double) throws -> [String: Any] {
+  guard let data = image.jpegData(compressionQuality: CGFloat(quality)) else {
+    throw StoreError.encodingFailed
+  }
+  let destination = try photosDirectory().appendingPathComponent(fileName)
+  try data.write(to: destination, options: .atomic)
+  let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+  return [
+    "fileName": fileName,
+    "uri": destination.absoluteString,
+    "width": Int(image.size.width * image.scale),
+    "height": Int(image.size.height * image.scale),
+    "bytes": data.count,
+    "contentHash": digest,
+  ]
+}
+
+// what: the provider's URL is only valid inside its callback, so the file is copied out before use
+private func copiedFile(from provider: NSItemProvider) async throws -> URL {
+  try await withCheckedThrowingContinuation { continuation in
+    provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, error in
+      guard let url else {
+        continuation.resume(throwing: error ?? StoreError.unreadableSource("picker item"))
+        return
+      }
+      let copy = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString)
+        .appendingPathExtension(url.pathExtension.isEmpty ? "img" : url.pathExtension)
+      do {
+        try FileManager.default.copyItem(at: url, to: copy)
+        continuation.resume(returning: copy)
+      } catch {
+        continuation.resume(throwing: error)
+      }
+    }
+  }
+}
+
+private final class PickerSession: NSObject, PHPickerViewControllerDelegate {
+  private let continuation: CheckedContinuation<[PHPickerResult], Never>
+
+  init(_ continuation: CheckedContinuation<[PHPickerResult], Never>) {
+    self.continuation = continuation
+  }
+
+  func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+    picker.dismiss(animated: true)
+    continuation.resume(returning: results)
+  }
+}
+
 public final class FramePhotoStoreModule: Module {
+  private var pickerSession: PickerSession?
+
   public func definition() -> ModuleDefinition {
     Name("FramePhotoStore")
 
@@ -78,20 +135,42 @@ public final class FramePhotoStoreModule: Module {
         throw StoreError.unreadableSource(sourceUri)
       }
       let image = try downsample(url: url, maxPixels: maxPixels)
-      guard let data = image.jpegData(compressionQuality: CGFloat(quality)) else {
-        throw StoreError.encodingFailed
+      return try store(image, fileName: fileName, quality: quality)
+    }
+
+    // what: the picker opens with the given assets already ticked, so one Done rebuilds every copy
+    // and the app never holds photo-library access
+    AsyncFunction("rebuildCopies") {
+      (fileNamesByAsset: [String: [String]], maxPixels: Int, quality: Double) -> [[String: Any]] in
+      var configuration = PHPickerConfiguration(photoLibrary: .shared())
+      configuration.filter = .images
+      configuration.selectionLimit = 0
+      configuration.preferredAssetRepresentationMode = .current
+      configuration.preselectedAssetIdentifiers = Array(fileNamesByAsset.keys)
+      let picker = PHPickerViewController(configuration: configuration)
+      guard let presenter = await MainActor.run(body: { self.appContext?.utilities?.currentViewController() })
+      else { throw StoreError.noPresenter }
+      let results: [PHPickerResult] = await withCheckedContinuation { continuation in
+        let session = PickerSession(continuation)
+        self.pickerSession = session
+        picker.delegate = session
+        DispatchQueue.main.async { presenter.present(picker, animated: true) }
       }
-      let destination = try photosDirectory().appendingPathComponent(fileName)
-      try data.write(to: destination, options: .atomic)
-      let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-      return [
-        "fileName": fileName,
-        "uri": destination.absoluteString,
-        "width": Int(image.size.width * image.scale),
-        "height": Int(image.size.height * image.scale),
-        "bytes": data.count,
-        "contentHash": digest,
-      ]
+      self.pickerSession = nil
+      var rebuilt: [[String: Any]] = []
+      for result in results {
+        guard let assetId = result.assetIdentifier, let fileNames = fileNamesByAsset[assetId]
+        else { continue }
+        let copy = try await copiedFile(from: result.itemProvider)
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let image = try downsample(url: copy, maxPixels: maxPixels)
+        for fileName in fileNames {
+          var saved = try store(image, fileName: fileName, quality: quality)
+          saved["assetId"] = assetId
+          rebuilt.append(saved)
+        }
+      }
+      return rebuilt
     }
 
     AsyncFunction("deletePhotos") { (fileNames: [String]) -> Int in

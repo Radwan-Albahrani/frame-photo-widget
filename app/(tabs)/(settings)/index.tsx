@@ -21,8 +21,10 @@ import {
 } from "@backend/api/settings/settings.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import { DuplicatesService } from "@backend/api/duplicates/duplicates.service";
+import { PhotosService } from "@backend/api/photos/photos.service";
+import { reportFailure } from "@backend/core/log/logger";
 import { usedBytes } from "@native/photoStore";
-import { formatBytes } from "@ui/format";
+import { countLabel, formatBytes } from "@ui/format";
 
 const INTERVALS = [
   { label: "5 minutes", value: 5 },
@@ -42,6 +44,7 @@ export default function SettingsScreen() {
   const [bytes, setBytes] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [duplicates, setDuplicates] = useState(0);
+  const [rebuild, setRebuild] = useState<string | null>(null);
   const router = useRouter();
 
   const reload = useCallback(async () => {
@@ -61,6 +64,24 @@ export default function SettingsScreen() {
     await WidgetService.sync();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setRefreshing(false);
+  }, []);
+
+  const rebuildCopies = useCallback(async () => {
+    setRebuild("Working…");
+    try {
+      const result = await PhotosService.rebuildAllCopies();
+      await WidgetService.sync();
+      setBytes(await usedBytes());
+      const parts = [`Rebuilt ${countLabel(result.rebuilt, "photo", "photos")}`];
+      if (result.unlinked > 0) {
+        parts.push(`${result.unlinked} added before linking was kept, add those again`);
+      }
+      setRebuild(parts.join(" · "));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      reportFailure({ op: "settings.rebuildCopies" }, error);
+      setRebuild("Could not rebuild the copies. Try again.");
+    }
   }, []);
 
   const update = useCallback((next: Partial<AppSettings>) => {
@@ -151,6 +172,22 @@ export default function SettingsScreen() {
             }
             systemImage="square.on.square.dashed"
             onPress={() => router.push("/duplicates")}
+          />
+        </Section>
+
+        <Section
+          title="Photo quality"
+          footer={
+            <NativeText>
+              {rebuild ??
+                "Opens the photo picker with your photos already selected. Tap Done and Frame rebuilds its copies at the current size. Frame never gets access to your photo library."}
+            </NativeText>
+          }
+        >
+          <NativeButton
+            label={rebuild === "Working…" ? "Working…" : "Rebuild photo copies"}
+            systemImage="wand.and.sparkles"
+            onPress={() => void rebuildCopies()}
           />
         </Section>
 

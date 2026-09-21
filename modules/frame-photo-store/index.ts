@@ -1,5 +1,9 @@
 import { requireOptionalNativeModule } from "expo";
 
+export interface RebuiltPhoto extends SavedPhoto {
+  assetId: string;
+}
+
 export interface SavedPhoto {
   fileName: string;
   uri: string;
@@ -24,6 +28,11 @@ interface FramePhotoStoreModule {
   getSnapshot(key: string): string | null;
   reloadWidgets(): void;
   placedWidgetCount(): Promise<number>;
+  rebuildCopies(
+    fileNamesByAsset: Record<string, string[]>,
+    maxPixels: number,
+    quality: number
+  ): Promise<RebuiltPhoto[]>;
   usedBytes(): Promise<number>;
 }
 
