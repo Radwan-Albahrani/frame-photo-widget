@@ -1,7 +1,8 @@
-import { asc, eq, isNull, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@backend/core/db/client";
 import { createId, now } from "@backend/core/db/ids";
 import { albumGroups, albums, type AlbumGroupRow } from "@backend/core/db/schema";
+import { nextSortOrder } from "@backend/core/db/sortOrder";
 
 export interface GroupNode {
   id: string;
@@ -15,6 +16,43 @@ export interface GroupWithCounts extends AlbumGroupRow {
   childGroupCount: number;
 }
 
+function tally(keys: (string | null)[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const key of keys) {
+    if (key === null) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function childrenByParent(groups: AlbumGroupRow[]): Map<string, string[]> {
+  const byParent = new Map<string, string[]>();
+  for (const group of groups) {
+    if (group.parentId === null) continue;
+    const siblings = byParent.get(group.parentId);
+    if (siblings === undefined) byParent.set(group.parentId, [group.id]);
+    else siblings.push(group.id);
+  }
+  return byParent;
+}
+
+function collectSubtree(id: string, byParent: Map<string, string[]>): string[] {
+  const collected = new Set<string>([id]);
+  let frontier = [id];
+  while (frontier.length > 0) {
+    const next: string[] = [];
+    for (const parent of frontier) {
+      for (const child of byParent.get(parent) ?? []) {
+        if (collected.has(child)) continue;
+        collected.add(child);
+        next.push(child);
+      }
+    }
+    frontier = next;
+  }
+  return [...collected];
+}
+
 export class GroupsService {
   static async all(): Promise<AlbumGroupRow[]> {
     return db
@@ -25,26 +63,20 @@ export class GroupsService {
   }
 
   static async children(parentId: string | null): Promise<GroupWithCounts[]> {
-    const rows = await db
-      .select({
-        id: albumGroups.id,
-        name: albumGroups.name,
-        parentId: albumGroups.parentId,
-        sortOrder: albumGroups.sortOrder,
-        createdAt: albumGroups.createdAt,
-        updatedAt: albumGroups.updatedAt,
-        albumCount: sql<number>`(
-          SELECT count(*) FROM ${albums} WHERE ${albums.groupId} = ${albumGroups.id}
-        )`,
-        childGroupCount: sql<number>`(
-          SELECT count(*) FROM album_groups child WHERE child.parent_id = ${albumGroups.id}
-        )`,
-      })
-      .from(albumGroups)
-      .where(parentId === null ? isNull(albumGroups.parentId) : eq(albumGroups.parentId, parentId))
-      .orderBy(asc(albumGroups.sortOrder), asc(albumGroups.createdAt))
-      .all();
-    return rows as GroupWithCounts[];
+    const [groups, owned] = await Promise.all([
+      GroupsService.all(),
+      db.select({ groupId: albums.groupId }).from(albums).all(),
+    ]);
+    const albumTally = tally(owned.map((album) => album.groupId));
+    const folderTally = tally(groups.map((group) => group.parentId));
+
+    return groups
+      .filter((group) => group.parentId === parentId)
+      .map((group) => ({
+        ...group,
+        albumCount: albumTally.get(group.id) ?? 0,
+        childGroupCount: folderTally.get(group.id) ?? 0,
+      }));
   }
 
   static async tree(): Promise<GroupNode[]> {
@@ -68,15 +100,11 @@ export class GroupsService {
 
   static async create(name: string, parentId: string | null): Promise<AlbumGroupRow> {
     const timestamp = now();
-    const highest = await db
-      .select({ value: sql<number>`coalesce(max(${albumGroups.sortOrder}), -1)` })
-      .from(albumGroups)
-      .get();
     const row: AlbumGroupRow = {
       id: createId(),
       name: name.trim().length > 0 ? name.trim() : "Untitled",
       parentId,
-      sortOrder: (highest?.value ?? -1) + 1,
+      sortOrder: await nextSortOrder(albumGroups, albumGroups.sortOrder),
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -92,19 +120,16 @@ export class GroupsService {
       .run();
   }
 
+  static async subtrees(ids: string[]): Promise<Record<string, string[]>> {
+    const byParent = childrenByParent(await GroupsService.all());
+    const subtrees: Record<string, string[]> = {};
+    for (const id of ids) subtrees[id] = collectSubtree(id, byParent);
+    return subtrees;
+  }
+
   static async descendantIds(id: string): Promise<string[]> {
-    const groups = await GroupsService.all();
-    const collected: string[] = [id];
-    let frontier = [id];
-    while (frontier.length > 0) {
-      const next = groups
-        .filter((group) => group.parentId !== null && frontier.includes(group.parentId))
-        .map((group) => group.id);
-      const fresh = next.filter((candidate) => !collected.includes(candidate));
-      collected.push(...fresh);
-      frontier = fresh;
-    }
-    return collected;
+    const subtrees = await GroupsService.subtrees([id]);
+    return subtrees[id] ?? [id];
   }
 
   // what: a group dropped inside its own subtree would orphan that whole branch

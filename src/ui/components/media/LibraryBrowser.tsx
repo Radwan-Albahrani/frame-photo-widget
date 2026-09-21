@@ -16,6 +16,7 @@ import { EmptyState } from "@ui/components/feedback/EmptyState";
 import { AlbumCard } from "@ui/components/media/AlbumCard";
 import { GroupCard } from "@ui/components/media/GroupCard";
 import { ConfirmDialog } from "@ui/components/overlays/ConfirmDialog";
+import { groupCountLabel, photoCountLabel } from "@ui/format";
 import { HoldMenu, type MenuAction, type NativeActionEvent } from "@ui/menu";
 import { space } from "@ui/theme";
 
@@ -70,23 +71,21 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
   const reload = useCallback(async () => {
-    const [childGroups, childAlbums, everyAlbum, tree] = await Promise.all([
+    const [childGroups, everyAlbum, tree] = await Promise.all([
       GroupsService.children(groupId),
-      AlbumsService.inGroup(groupId),
       AlbumsService.list(),
       GroupsService.tree(),
     ]);
     setGroups(childGroups);
-    setAlbums(childAlbums);
+    setAlbums(everyAlbum.filter((album) => album.groupId === groupId));
     setFolders(tree);
 
+    const descendants = await GroupsService.subtrees(childGroups.map((group) => group.id));
     const next: Record<string, (string | null)[]> = {};
-    const descendants: Record<string, string[]> = {};
     for (const group of childGroups) {
-      const ids = await GroupsService.descendantIds(group.id);
-      descendants[group.id] = ids;
+      const inside = new Set(descendants[group.id] ?? [group.id]);
       next[group.id] = everyAlbum
-        .filter((album) => album.groupId !== null && ids.includes(album.groupId))
+        .filter((album) => album.groupId !== null && inside.has(album.groupId))
         .slice(0, 4)
         .map((album) => (album.coverFileName === null ? null : photoUri(album.coverFileName)));
     }
@@ -227,16 +226,16 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
                 onPressAction={(event) => onGroupAction(group, event)}
                 onPress={() => router.push(`/group/${group.id}`)}
                 title={group.name}
-                accessibilityLabel={`${group.name}, ${
-                  group.albumCount + group.childGroupCount === 1
-                    ? "1 album"
-                    : `${group.albumCount + group.childGroupCount} albums`
-                }`}
+                accessibilityLabel={`${group.name}, ${groupCountLabel(
+                  group.albumCount,
+                  group.childGroupCount
+                )}`}
                 accessibilityHint="Touch and hold for folder actions"
               >
                 <GroupCard
                   name={group.name}
-                  albumCount={group.albumCount + group.childGroupCount}
+                  albumCount={group.albumCount}
+                  folderCount={group.childGroupCount}
                   coverUris={covers[group.id] ?? []}
                   size={cardSize}
                 />
@@ -250,7 +249,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
               onPressAction={(event) => onAlbumAction(album, event)}
               onPress={() => router.push(`/album/${album.id}`)}
               title={album.name}
-              accessibilityLabel={album.name}
+              accessibilityLabel={`${album.name}, ${photoCountLabel(album.photoCount)}`}
               accessibilityHint="Touch and hold for album actions"
             >
               <AlbumCard

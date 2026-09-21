@@ -1,44 +1,50 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@backend/core/db/client";
 import { createId, now } from "@backend/core/db/ids";
 import { albums, photos, type AlbumRow } from "@backend/core/db/schema";
+import { nextSortOrder } from "@backend/core/db/sortOrder";
 
 export interface AlbumWithCount extends AlbumRow {
   photoCount: number;
   coverFileName: string | null;
 }
 
+export interface AlbumLibrary {
+  albums: AlbumWithCount[];
+  photosByAlbum: Map<string, { fileName: string }[]>;
+}
+
 export class AlbumsService {
-  static async list(): Promise<AlbumWithCount[]> {
-    const rows = await db
-      .select({
-        id: albums.id,
-        name: albums.name,
-        coverPhotoId: albums.coverPhotoId,
-        groupId: albums.groupId,
-        sortOrder: albums.sortOrder,
-        createdAt: albums.createdAt,
-        updatedAt: albums.updatedAt,
-        photoCount: sql<number>`(
-          SELECT count(*) FROM ${photos} WHERE ${photos.albumId} = ${albums.id}
-        )`,
-        coverFileName: sql<string | null>`COALESCE(
-          (SELECT ${photos.fileName} FROM ${photos} WHERE ${photos.id} = ${albums.coverPhotoId}),
-          (SELECT ${photos.fileName} FROM ${photos}
-           WHERE ${photos.albumId} = ${albums.id}
-           ORDER BY ${photos.sortOrder} ASC, ${photos.createdAt} ASC
-           LIMIT 1)
-        )`,
-      })
-      .from(albums)
-      .orderBy(asc(albums.sortOrder), asc(albums.createdAt))
-      .all();
-    return rows as AlbumWithCount[];
+  static async library(): Promise<AlbumLibrary> {
+    const [rows, everyPhoto] = await Promise.all([
+      db.select().from(albums).orderBy(asc(albums.sortOrder), asc(albums.createdAt)).all(),
+      // what: leading with album_id lets the photos_album_order index serve this without a sort
+      db
+        .select({ id: photos.id, albumId: photos.albumId, fileName: photos.fileName })
+        .from(photos)
+        .orderBy(asc(photos.albumId), asc(photos.sortOrder), asc(photos.createdAt))
+        .all(),
+    ]);
+
+    const photosByAlbum = new Map<string, { id: string; fileName: string }[]>();
+    for (const photo of everyPhoto) {
+      const owned = photosByAlbum.get(photo.albumId);
+      if (owned === undefined) photosByAlbum.set(photo.albumId, [photo]);
+      else owned.push(photo);
+    }
+
+    return {
+      albums: rows.map((album) => {
+        const owned = photosByAlbum.get(album.id) ?? [];
+        const cover = owned.find((photo) => photo.id === album.coverPhotoId) ?? owned[0];
+        return { ...album, photoCount: owned.length, coverFileName: cover?.fileName ?? null };
+      }),
+      photosByAlbum,
+    };
   }
 
-  static async inGroup(groupId: string | null): Promise<AlbumWithCount[]> {
-    const all = await AlbumsService.list();
-    return all.filter((album) => album.groupId === groupId);
+  static async list(): Promise<AlbumWithCount[]> {
+    return (await AlbumsService.library()).albums;
   }
 
   static async byId(id: string): Promise<AlbumRow | null> {
@@ -48,16 +54,12 @@ export class AlbumsService {
 
   static async create(name: string): Promise<AlbumRow> {
     const timestamp = now();
-    const highest = await db
-      .select({ value: sql<number>`coalesce(max(${albums.sortOrder}), -1)` })
-      .from(albums)
-      .get();
     const row: AlbumRow = {
       id: createId(),
       name: name.trim().length > 0 ? name.trim() : "Untitled",
       coverPhotoId: null,
       groupId: null,
-      sortOrder: (highest?.value ?? -1) + 1,
+      sortOrder: await nextSortOrder(albums, albums.sortOrder),
       createdAt: timestamp,
       updatedAt: timestamp,
     };

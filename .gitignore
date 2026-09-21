@@ -42,4 +42,6 @@ tmp/
 targets/*/generated.entitlements
 
 # Vendored agent skills (tracked by skills-lock.json, same as the sister project)
+# .claude/skills symlinks into .agents/skills, one link per skill
 .agents
+.claude

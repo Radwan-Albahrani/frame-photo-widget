@@ -5,6 +5,16 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export function countLabel(count: number, singular: string, plural: string): string {
+  return count === 1 ? `1 ${singular}` : `${count} ${plural}`;
+}
+
 export function photoCountLabel(count: number): string {
-  return count === 1 ? "1 photo" : `${count} photos`;
+  return countLabel(count, "photo", "photos");
+}
+
+export function groupCountLabel(albumCount: number, folderCount: number): string {
+  const albumPart = countLabel(albumCount, "album", "albums");
+  if (folderCount === 0) return albumPart;
+  return `${albumPart} · ${countLabel(folderCount, "folder", "folders")}`;
 }

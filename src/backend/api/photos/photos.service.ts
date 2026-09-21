@@ -1,7 +1,8 @@
-import { asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { asc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@backend/core/db/client";
 import { createId, now } from "@backend/core/db/ids";
 import { albums, photos, type PhotoRow } from "@backend/core/db/schema";
+import { nextSortOrder } from "@backend/core/db/sortOrder";
 import { deletePhotoFiles, hashPhotoFiles, savePhoto } from "@native/photoStore";
 
 export class PhotosService {
@@ -14,25 +15,11 @@ export class PhotosService {
       .all();
   }
 
-  static async countByAlbum(albumId: string): Promise<number> {
-    const row = await db
-      .select({ value: sql<number>`count(*)` })
-      .from(photos)
-      .where(eq(photos.albumId, albumId))
-      .get();
-    return row?.value ?? 0;
-  }
-
   static async add(
     albumId: string,
     sources: { uri: string; assetId?: string | null }[]
   ): Promise<PhotoRow[]> {
-    const highest = await db
-      .select({ value: sql<number>`coalesce(max(${photos.sortOrder}), -1)` })
-      .from(photos)
-      .where(eq(photos.albumId, albumId))
-      .get();
-    let order = (highest?.value ?? -1) + 1;
+    let order = await nextSortOrder(photos, photos.sortOrder, eq(photos.albumId, albumId));
     const created: PhotoRow[] = [];
 
     for (const source of sources) {

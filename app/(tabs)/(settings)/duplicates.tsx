@@ -9,6 +9,7 @@ import { PhotosService } from "@backend/api/photos/photos.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import { photoUri } from "@native/photoStore";
 import { EmptyState, Text } from "@ui/components";
+import { countLabel, photoCountLabel } from "@ui/format";
 import { colors, radius, space } from "@ui/theme";
 
 export default function DuplicatesScreen() {
@@ -68,9 +69,8 @@ export default function DuplicatesScreen() {
         ) : (
           <>
             <Text variant="subhead" tone="dim">
-              {extras === 1 ? "1 extra copy" : `${extras} extra copies`} across{" "}
-              {sets.length === 1 ? "1 photo" : `${sets.length} photos`}. Keeping the first copy
-              removes the rest.
+              {countLabel(extras, "extra copy", "extra copies")} across{" "}
+              {photoCountLabel(sets.length)}. Keeping the first copy removes the rest.
             </Text>
             {sets.map((set) => (
               <View

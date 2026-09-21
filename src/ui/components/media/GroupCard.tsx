@@ -2,18 +2,20 @@ import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
 import { StyleSheet, View } from "react-native";
 import { Text } from "@ui/components/primitives/Text";
+import { groupCountLabel } from "@ui/format";
 import { colors, radius, space } from "@ui/theme";
 
 interface GroupCardProps {
   name: string;
   albumCount: number;
+  folderCount: number;
   coverUris: (string | null)[];
   size: number;
 }
 
 const TILE_GAP = 4;
 
-export function GroupCard({ name, albumCount, coverUris, size }: GroupCardProps) {
+export function GroupCard({ name, albumCount, folderCount, coverUris, size }: GroupCardProps) {
   const padding = space.sm;
   const mosaic = size - padding * 2;
   const tile = (mosaic - TILE_GAP) / 2;
@@ -78,7 +80,7 @@ export function GroupCard({ name, albumCount, coverUris, size }: GroupCardProps)
       </View>
 
       <Text variant="footnote" tone="muted">
-        {albumCount === 1 ? "1 album" : `${albumCount} albums`}
+        {groupCountLabel(albumCount, folderCount)}
       </Text>
     </View>
   );
