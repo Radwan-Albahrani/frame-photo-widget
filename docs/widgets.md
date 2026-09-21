@@ -76,6 +76,27 @@ compared on a real device (Settings → Widget data source):
 `import SQLite3` needs no extra linking: the iOS SDK modulemap carries `link "sqlite3"`, so it
 autolinks into the extension.
 
+### Both were measured on device, and it is a tie (2026-09-21, iPhone 17 / iOS 27)
+
+One album, six photos, app terminated, same placed widget:
+
+| Source | phys_footprint | peak | timeline build |
+|---|---|---|---|
+| `sqlite` | 16 MB | 19 MB | ~603 ms |
+| `snapshot` | 16 MB | 19 MB | ~621 ms |
+
+**The data read is not what costs anything — image decoding is.** 19 MB peak against the 30 MB
+limit is the number that matters, and it is identical either way, so pick on robustness:
+
+- **`snapshot` is the default**, because a schema change cannot break the widget, there is no SQLite
+  reader to maintain in the extension, and there is no WAL/locking failure mode. Its one cost is
+  that the app must run `WidgetService.sync()` for the widget to see new data, which it does on
+  every launch and after every mutation.
+- **`sqlite`** is kept because it is genuinely simpler conceptually (one source of truth, nothing to
+  mirror) and is the right answer if the snapshot ever grows too large for `UserDefaults`.
+
+Keep both working. The setting that switches them is in Settings → Widget data source.
+
 ## Configuration: per-widget album choice
 
 The album picker in the widget's edit sheet is an **`AppIntentConfiguration`**, not a
