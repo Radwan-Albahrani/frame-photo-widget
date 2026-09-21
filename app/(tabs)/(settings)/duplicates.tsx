@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { Stack, useFocusEffect } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { DuplicatesService, type DuplicateSet } from "@backend/api/duplicates/duplicates.service";
 import { PhotosService } from "@backend/api/photos/photos.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
@@ -14,9 +14,13 @@ import { colors, radius, space } from "@ui/theme";
 export default function DuplicatesScreen() {
   const [sets, setSets] = useState<DuplicateSet[]>([]);
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(true);
 
   const reload = useCallback(async () => {
+    setScanning(true);
+    await PhotosService.backfillHashes();
     setSets(await DuplicatesService.find());
+    setScanning(false);
   }, []);
 
   useFocusEffect(
@@ -46,7 +50,14 @@ export default function DuplicatesScreen() {
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxxl * 3 }}
       >
-        {sets.length === 0 ? (
+        {scanning ? (
+          <View style={{ paddingTop: space.xxxl * 2, alignItems: "center", gap: space.md }}>
+            <ActivityIndicator color={colors.accent} />
+            <Text variant="subhead" tone="dim">
+              Checking every photo in your library…
+            </Text>
+          </View>
+        ) : sets.length === 0 ? (
           <View style={{ paddingTop: space.xxxl * 2 }}>
             <EmptyState
               icon="checkmark.circle"

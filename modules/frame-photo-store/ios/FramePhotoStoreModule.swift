@@ -128,6 +128,17 @@ public final class FramePhotoStoreModule: Module {
       WidgetCenter.shared.reloadAllTimelines()
     }
 
+    AsyncFunction("hashPhotos") { (fileNames: [String]) -> [String: String] in
+      let directory = try photosDirectory()
+      var digests: [String: String] = [:]
+      for name in fileNames {
+        let target = directory.appendingPathComponent(name)
+        guard let data = try? Data(contentsOf: target, options: .mappedIfSafe) else { continue }
+        digests[name] = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+      }
+      return digests
+    }
+
     AsyncFunction("usedBytes") { () -> Int in
       let directory = try photosDirectory()
       let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)

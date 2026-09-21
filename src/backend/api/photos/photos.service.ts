@@ -1,8 +1,8 @@
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@backend/core/db/client";
 import { createId, now } from "@backend/core/db/ids";
 import { albums, photos, type PhotoRow } from "@backend/core/db/schema";
-import { deletePhotoFiles, savePhoto } from "@native/photoStore";
+import { deletePhotoFiles, hashPhotoFiles, savePhoto } from "@native/photoStore";
 
 export class PhotosService {
   static async listByAlbum(albumId: string): Promise<PhotoRow[]> {
@@ -60,6 +60,25 @@ export class PhotosService {
       await db.update(albums).set({ updatedAt: now() }).where(eq(albums.id, albumId)).run();
     }
     return created;
+  }
+
+  static async backfillHashes(): Promise<number> {
+    const missing = await db
+      .select({ id: photos.id, fileName: photos.fileName })
+      .from(photos)
+      .where(isNull(photos.contentHash))
+      .all();
+    if (missing.length === 0) return 0;
+
+    const digests = await hashPhotoFiles(missing.map((row) => row.fileName));
+    let updated = 0;
+    for (const row of missing) {
+      const digest = digests[row.fileName];
+      if (digest === undefined) continue;
+      await db.update(photos).set({ contentHash: digest }).where(eq(photos.id, row.id)).run();
+      updated += 1;
+    }
+    return updated;
   }
 
   static async remove(ids: string[]): Promise<void> {

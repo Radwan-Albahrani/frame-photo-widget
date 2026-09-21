@@ -20,6 +20,11 @@ export async function deletePhotoFiles(fileNames: string[]): Promise<number> {
   return native.deletePhotos(fileNames);
 }
 
+export async function hashPhotoFiles(fileNames: string[]): Promise<Record<string, string>> {
+  if (native == null || fileNames.length === 0) return {};
+  return native.hashPhotos(fileNames);
+}
+
 export function photoUri(fileName: string): string | null {
   return native?.photoUri(fileName) ?? null;
 }

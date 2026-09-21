@@ -17,6 +17,7 @@ interface FramePhotoStoreModule {
     quality: number
   ): Promise<SavedPhoto>;
   deletePhotos(fileNames: string[]): Promise<number>;
+  hashPhotos(fileNames: string[]): Promise<Record<string, string>>;
   photoUri(fileName: string): string | null;
   containerPath(): string | null;
   setSnapshot(key: string, json: string): void;
