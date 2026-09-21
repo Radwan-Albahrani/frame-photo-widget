@@ -206,16 +206,22 @@ export default function AlbumScreen() {
           <Stack.Toolbar.Button
             icon="trash"
             tintColor={colors.error}
+            accessibilityLabel="Delete selected photos"
             onPress={() => void removeSelected()}
           />
         ) : (
           <Stack.Toolbar.Button
             icon="plus"
             tintColor={colors.accent}
+            accessibilityLabel="Add photos"
             onPress={() => void addPhotos()}
           />
         )}
-        <Stack.Toolbar.Menu icon="ellipsis" tintColor={colors.accent}>
+        <Stack.Toolbar.Menu
+          icon="ellipsis"
+          tintColor={colors.accent}
+          accessibilityLabel="Album options"
+        >
           {onlySelected === null ? null : (
             <Stack.Toolbar.MenuAction icon="star" onPress={() => void makeCover(onlySelected)}>
               Use as cover
@@ -240,12 +246,12 @@ export default function AlbumScreen() {
           >
             Rename
           </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.Menu icon="folder" title="Move to group">
+          <Stack.Toolbar.Menu icon="folder" title="Move to folder">
             <Stack.Toolbar.MenuAction
               icon={groupId === null ? "checkmark" : "tray"}
               onPress={() => void moveToGroup(null)}
             >
-              No group
+              No folder
             </Stack.Toolbar.MenuAction>
             {groups.map((group) => (
               <Stack.Toolbar.MenuAction

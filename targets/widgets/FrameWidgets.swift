@@ -391,10 +391,17 @@ struct SelectAlbumIntent: WidgetConfigurationIntent {
 struct PhotoEntry: TimelineEntry {
   let date: Date
   let fileName: String?
+  let albumId: String?
   let albumName: String
   let position: Int
   let total: Int
   let settings: WidgetSettings
+
+  // what: tapping a widget opens the album it is showing, so its source is never a guess
+  var deepLink: URL? {
+    guard let albumId else { return URL(string: "frame:///") }
+    return URL(string: "frame:///album/\(albumId)")
+  }
 }
 
 struct PhotoProvider: AppIntentTimelineProvider {
@@ -422,6 +429,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
     return PhotoEntry(
       date: Date(),
       fileName: album?.photos.first,
+      albumId: album?.id,
       albumName: album?.name ?? "Frame",
       position: 0,
       total: album?.photos.count ?? 0,
@@ -451,7 +459,8 @@ struct PhotoProvider: AppIntentTimelineProvider {
     else {
       return [
         PhotoEntry(
-          date: Date(), fileName: nil, albumName: configuration.album?.name ?? "Frame",
+          date: Date(), fileName: nil, albumId: configuration.album?.id,
+          albumName: configuration.album?.name ?? "Frame",
           position: 0, total: 0, settings: settings)
       ]
     }
@@ -472,6 +481,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
       return PhotoEntry(
         date: slotStart.addingTimeInterval(TimeInterval(index) * interval),
         fileName: ordered[position],
+        albumId: album.id,
         albumName: album.name,
         position: position,
         total: ordered.count,
@@ -522,6 +532,7 @@ struct PhotoWidgetView: View {
   var body: some View {
     content
       .containerBackground(for: .widget) { backdrop }
+      .widgetURL(entry.deepLink)
   }
 
   // what: one decode reused for both layers, so `fit` costs no extra memory

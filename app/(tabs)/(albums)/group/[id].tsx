@@ -64,7 +64,12 @@ export default function GroupScreen() {
       <LibraryBrowser groupId={id} />
       <Stack.Screen.Title>{name}</Stack.Screen.Title>
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu icon="plus" tintColor={colors.accent}>
+        <Stack.Toolbar.Menu
+          icon="plus"
+          tintColor={colors.accent}
+          accessibilityLabel="Create"
+          accessibilityHint="Choose a new album or a new folder"
+        >
           <Stack.Toolbar.MenuAction
             icon="rectangle.stack.badge.plus"
             onPress={() => router.push({ pathname: "/name", params: { group: id } })}
@@ -80,7 +85,11 @@ export default function GroupScreen() {
             New folder here
           </Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
-        <Stack.Toolbar.Menu icon="ellipsis" tintColor={colors.accent}>
+        <Stack.Toolbar.Menu
+          icon="ellipsis"
+          tintColor={colors.accent}
+          accessibilityLabel="Folder options"
+        >
           <Stack.Toolbar.Menu icon="folder" title="Move to folder">
             <Stack.Toolbar.MenuAction
               icon="tray"

@@ -216,3 +216,15 @@ and you get a border.
 - The `photos` directory is created lazily on first write, so a fresh install has no directory until
   the first photo is imported. `PhotoLoader` returning `nil` for a missing file is expected, not an
   error path.
+
+## Tapping a widget opens the album it is showing
+
+`PhotoEntry` carries the resolved `albumId`, and `PhotoWidgetView` hands
+`frame:///album/<id>` to `.widgetURL`. Tapping any widget therefore lands on the album whose photo
+is on screen, rather than dumping the person on the library root wondering which widget they just
+touched. A widget configured by group still resolves to a concrete album per entry, so the link is
+always specific; a widget with nothing configured falls back to `frame:///`.
+
+The route is `app/(tabs)/(albums)/album/[id].tsx`. expo-router omits parenthesised groups from the
+URL, which is why the link is `/album/<id>` and not `/(tabs)/(albums)/album/<id>`.
+

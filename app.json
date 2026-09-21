@@ -76,7 +76,22 @@
     },
     "extra": {
       "eas": {
-        "projectId": "615bc44b-e241-40cf-bcaa-fd1fd2d5dcb4"
+        "projectId": "615bc44b-e241-40cf-bcaa-fd1fd2d5dcb4",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.lumen.frame.widget",
+                  "targetName": "FrameWidgets",
+                  "entitlements": {
+                    "com.apple.security.application-groups": ["group.com.lumen.frame"]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "owner": "developerxt",
@@ -86,6 +101,9 @@
     "updates": {
       "url": "https://u.expo.dev/615bc44b-e241-40cf-bcaa-fd1fd2d5dcb4"
     },
-    "icon": "./assets/icon.png"
+    "icon": "./assets/icon.png",
+    "android": {
+      "package": "com.lumen.frame"
+    }
   }
 }

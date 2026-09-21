@@ -8,7 +8,12 @@ export default function AlbumsScreen() {
     <>
       <LibraryBrowser groupId={null} />
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu icon="plus" tintColor={colors.accent}>
+        <Stack.Toolbar.Menu
+          icon="plus"
+          tintColor={colors.accent}
+          accessibilityLabel="Create"
+          accessibilityHint="Choose a new album or a new folder"
+        >
           <Stack.Toolbar.MenuAction
             icon="rectangle.stack.badge.plus"
             onPress={() => router.push("/name")}
