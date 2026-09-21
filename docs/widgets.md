@@ -112,6 +112,18 @@ in Frame's rotation path needs the app to be alive:
 renamed). Settings → **Update widgets now** exposes that manually, and it is the right thing to tap
 after importing photos if you do not want to wait.
 
+### Verified, not assumed (2026-09-21, iPhone 17 / iOS 27)
+
+With `refreshMinutes = 5`, the app **terminated** (`pgrep` confirmed only `FrameWidgets.appex`
+alive), the widget's mean RGB over its tile was sampled every 2 minutes:
+
+```
+T+0  (209,179,173)   T+2  same   T+4  same   T+6  (147,98,196)  <- rotated
+```
+
+The photo changed on schedule with no app process in existence. If a future change makes rotation
+depend on the app running, this is the check that catches it.
+
 ## Rotation is entries, not reloads
 
 **A widget gets roughly 40–70 reloads per day**, i.e. one every 15–60 minutes, and the system —
