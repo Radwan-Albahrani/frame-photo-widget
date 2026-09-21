@@ -247,26 +247,44 @@ struct AlbumEntity: AppEntity {
   let id: String
   let name: String
   let count: Int
+  let groupName: String?
 
   static var typeDisplayRepresentation: TypeDisplayRepresentation = "Album"
   static var defaultQuery = AlbumQuery()
 
   var displayRepresentation: DisplayRepresentation {
-    DisplayRepresentation(
-      title: "\(name)",
-      subtitle: count == 1 ? "1 photo" : "\(count) photos")
+    let photos = count == 1 ? "1 photo" : "\(count) photos"
+    guard let groupName, !groupName.isEmpty else {
+      return DisplayRepresentation(title: "\(name)", subtitle: "\(photos)")
+    }
+    return DisplayRepresentation(title: "\(name)", subtitle: "\(groupName) · \(photos)")
   }
 }
 
 struct AlbumQuery: EntityQuery {
+  // what: ties the album list to the chosen group so long lists filter down
+  @IntentParameterDependency<SelectAlbumIntent>(\.$group)
+  var selection
+
+  private func entity(_ album: Album, groups: [PhotoGroup]) -> AlbumEntity {
+    let groupName = groups.first(where: { $0.id == album.groupId })?.name
+    return AlbumEntity(
+      id: album.id, name: album.name, count: album.photos.count, groupName: groupName)
+  }
+
   func entities(for identifiers: [String]) async throws -> [AlbumEntity] {
-    FrameStore.albums()
+    let groups = FrameStore.groups()
+    return FrameStore.albums()
       .filter { identifiers.contains($0.id) }
-      .map { AlbumEntity(id: $0.id, name: $0.name, count: $0.photos.count) }
+      .map { entity($0, groups: groups) }
   }
 
   func suggestedEntities() async throws -> [AlbumEntity] {
-    FrameStore.albums().map { AlbumEntity(id: $0.id, name: $0.name, count: $0.photos.count) }
+    let groups = FrameStore.groups()
+    let groupId = selection?.group?.id
+    return FrameStore.albums()
+      .filter { groupId == nil || $0.groupId == groupId }
+      .map { entity($0, groups: groups) }
   }
 
   func defaultResult() async -> AlbumEntity? {
@@ -350,6 +368,21 @@ struct PhotoProvider: AppIntentTimelineProvider {
   private static let maxEntries = 120
   private static let targetSpanSeconds: TimeInterval = 6 * 3600
 
+  /// Deterministic shuffle: the same album always shuffles the same way, so a reload
+  /// does not hand the viewer a brand-new random photo.
+  private static func shuffled(_ photos: [String], seed: String) -> [String] {
+    var state = UInt64(abs(seed.hashValue)) | 1
+    var working = photos
+    var index = working.count - 1
+    while index > 0 {
+      state = state &* 6364136223846793005 &+ 1442695040888963407
+      let pick = Int(state >> 33) % (index + 1)
+      working.swapAt(index, pick)
+      index -= 1
+    }
+    return working
+  }
+
   func placeholder(in context: Context) -> PhotoEntry {
     let album = FrameStore.resolve(albumId: nil, groupId: nil)
     return PhotoEntry(
@@ -389,19 +422,24 @@ struct PhotoProvider: AppIntentTimelineProvider {
       ]
     }
 
-    let shuffled = configuration.shuffle || settings.shuffle
-    let ordered = shuffled ? album.photos.shuffled() : album.photos
     let interval = TimeInterval(max(1, settings.refreshMinutes) * 60)
-    let start = Date()
+    // what: anchoring to absolute time keeps a reload from restarting the rotation
+    let slot = (Date().timeIntervalSince1970 / interval).rounded(.down)
+    let slotStart = Date(timeIntervalSince1970: slot * interval)
+
+    let shuffled = configuration.shuffle || settings.shuffle
+    let ordered = shuffled ? Self.shuffled(album.photos, seed: album.id) : album.photos
     let stepsForSpan = Int(Self.targetSpanSeconds / interval) + 1
     let count = min(Self.maxEntries, max(ordered.count, stepsForSpan))
+    let offset = Int(slot.truncatingRemainder(dividingBy: Double(ordered.count)))
 
     return (0..<count).map { index in
-      PhotoEntry(
-        date: start.addingTimeInterval(TimeInterval(index) * interval),
-        fileName: ordered[index % ordered.count],
+      let position = (offset + index) % ordered.count
+      return PhotoEntry(
+        date: slotStart.addingTimeInterval(TimeInterval(index) * interval),
+        fileName: ordered[position],
         albumName: album.name,
-        position: index % ordered.count,
+        position: position,
         total: ordered.count,
         settings: settings)
     }
