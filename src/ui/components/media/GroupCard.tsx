@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Text } from "@ui/components/primitives/Text";
 import { colors, radius, space } from "@ui/theme";
 
@@ -9,20 +9,11 @@ interface GroupCardProps {
   albumCount: number;
   coverUris: (string | null)[];
   size: number;
-  onPress: () => void;
-  onLongPress?: () => void;
 }
 
 const TILE_GAP = 4;
 
-export function GroupCard({
-  name,
-  albumCount,
-  coverUris,
-  size,
-  onPress,
-  onLongPress,
-}: GroupCardProps) {
+export function GroupCard({ name, albumCount, coverUris, size }: GroupCardProps) {
   const padding = space.sm;
   const mosaic = size - padding * 2;
   const tile = (mosaic - TILE_GAP) / 2;
@@ -30,19 +21,7 @@ export function GroupCard({
   const tiles = SLOTS.map((slot, index) => ({ slot, uri: coverUris[index] ?? null }));
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${name}, ${albumCount === 1 ? "1 album" : `${albumCount} albums`}`}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={280}
-      style={({ pressed }) => ({
-        width: size,
-        gap: space.sm,
-        opacity: pressed ? 0.75 : 1,
-        transform: [{ scale: pressed ? 0.98 : 1 }],
-      })}
-    >
+    <View style={{ width: size, gap: space.sm }}>
       <View
         style={{
           width: size,
@@ -101,6 +80,6 @@ export function GroupCard({
       <Text variant="footnote" tone="muted">
         {albumCount === 1 ? "1 album" : `${albumCount} albums`}
       </Text>
-    </Pressable>
+    </View>
   );
 }

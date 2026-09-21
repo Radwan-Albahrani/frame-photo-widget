@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Text } from "@ui/components/primitives/Text";
 import { photoCountLabel } from "@ui/format";
 import { colors, radius, space } from "@ui/theme";
@@ -11,39 +11,17 @@ interface AlbumCardProps {
   coverUri: string | null;
   size: number;
   recyclingKey: string;
-  onPress: () => void;
-  onLongPress?: () => void;
 }
 
 const STACK_INSET = 10;
 const STACK_OFFSET = 6;
 
-export function AlbumCard({
-  name,
-  photoCount,
-  coverUri,
-  size,
-  recyclingKey,
-  onPress,
-  onLongPress,
-}: AlbumCardProps) {
+export function AlbumCard({ name, photoCount, coverUri, size, recyclingKey }: AlbumCardProps) {
   const stacked = photoCount > 1;
   const coverHeight = stacked ? size - STACK_OFFSET * 2 : size;
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${name}, ${photoCountLabel(photoCount)}`}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={280}
-      style={({ pressed }) => ({
-        width: size,
-        gap: space.sm,
-        opacity: pressed ? 0.75 : 1,
-        transform: [{ scale: pressed ? 0.98 : 1 }],
-      })}
-    >
+    <View style={{ width: size, gap: space.sm }}>
       <View style={{ width: size, height: size, justifyContent: "flex-end" }}>
         {stacked ? (
           <View
@@ -110,7 +88,7 @@ export function AlbumCard({
           {photoCountLabel(photoCount)}
         </Text>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
