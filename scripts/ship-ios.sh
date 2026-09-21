@@ -93,7 +93,9 @@ echo "app $APP_ID  version $VERSION  ipa $IPA"
 if [ "$SKIP_BUILD" -eq 0 ]; then
   step "Building IPA locally"
   rm -f "$IPA"
-  eas build --profile production --platform ios --local --output "$IPA" --non-interactive
+  # eas fetches its local-build plugin through npx; the 7-day npm release-age guard is for
+  # third-party dependencies, not for Expo's own tooling, so it is lifted for this one call.
+  npm_config_min_release_age=0 eas build --profile production --platform ios --local --output "$IPA" --non-interactive
 fi
 
 # Lower bound for build discovery, taken before the upload and padded for clock skew.
