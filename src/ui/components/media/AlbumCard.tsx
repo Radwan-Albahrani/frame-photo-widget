@@ -12,6 +12,7 @@ interface AlbumCardProps {
   size: number;
   recyclingKey: string;
   onPress: () => void;
+  onLongPress?: () => void;
 }
 
 const STACK_INSET = 10;
@@ -24,6 +25,7 @@ export function AlbumCard({
   size,
   recyclingKey,
   onPress,
+  onLongPress,
 }: AlbumCardProps) {
   const stacked = photoCount > 1;
   const coverHeight = stacked ? size - STACK_OFFSET * 2 : size;
@@ -33,6 +35,8 @@ export function AlbumCard({
       accessibilityRole="button"
       accessibilityLabel={`${name}, ${photoCountLabel(photoCount)}`}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={280}
       style={({ pressed }) => ({
         width: size,
         gap: space.sm,

@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import { View, type LayoutChangeEvent } from "react-native";
+import { useEffect } from "react";
+import { View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -20,19 +20,19 @@ interface ReorderableGridProps<T extends ReorderableItem> {
   numColumns: number;
   cellSize: number;
   gap: number;
-  renderItem: (item: T, dragging: boolean) => React.ReactNode;
+  renderItem: (item: T) => React.ReactNode;
   onReorder: (orderedIds: string[]) => void;
   onPress?: (item: T) => void;
-  enabled?: boolean;
 }
 
-const SPRING = { damping: 22, stiffness: 220, mass: 0.6 };
+const SPRING = { damping: 20, stiffness: 200, mass: 0.5 };
 
 function positionOf(index: number, numColumns: number, cellSize: number, gap: number) {
   "worklet";
-  const column = index % numColumns;
-  const row = Math.floor(index / numColumns);
-  return { x: column * (cellSize + gap), y: row * (cellSize + gap) };
+  return {
+    x: (index % numColumns) * (cellSize + gap),
+    y: Math.floor(index / numColumns) * (cellSize + gap),
+  };
 }
 
 function indexAt(
@@ -57,37 +57,30 @@ export function ReorderableGrid<T extends ReorderableItem>({
   renderItem,
   onReorder,
   onPress,
-  enabled = true,
 }: ReorderableGridProps<T>) {
   const order = useSharedValue<string[]>(items.map((item) => item.id));
-  const activeId = useSharedValue<string | null>(null);
+  const signature = items.map((item) => item.id).join(",");
 
-  order.value = items.map((item) => item.id);
+  useEffect(() => {
+    order.value = signature.length === 0 ? [] : signature.split(",");
+  }, [signature, order]);
 
   const rows = Math.ceil(items.length / numColumns);
   const height = rows === 0 ? 0 : rows * cellSize + (rows - 1) * gap;
 
-  const commit = useCallback(
-    (next: string[]) => {
-      onReorder(next);
-    },
-    [onReorder]
-  );
-
   return (
     <View style={{ height, width: numColumns * cellSize + (numColumns - 1) * gap }}>
-      {items.map((item) => (
+      {items.map((item, initialIndex) => (
         <ReorderableCell
           key={item.id}
           item={item}
+          initialIndex={initialIndex}
           order={order}
-          activeId={activeId}
           numColumns={numColumns}
           cellSize={cellSize}
           gap={gap}
           count={items.length}
-          enabled={enabled}
-          onCommit={commit}
+          onReorder={onReorder}
           onPress={onPress}
         >
           {renderItem}
@@ -99,35 +92,34 @@ export function ReorderableGrid<T extends ReorderableItem>({
 
 interface CellProps<T extends ReorderableItem> {
   item: T;
+  initialIndex: number;
   order: SharedValue<string[]>;
-  activeId: SharedValue<string | null>;
   numColumns: number;
   cellSize: number;
   gap: number;
   count: number;
-  enabled: boolean;
-  onCommit: (next: string[]) => void;
+  onReorder: (orderedIds: string[]) => void;
   onPress?: (item: T) => void;
-  children: (item: T, dragging: boolean) => React.ReactNode;
+  children: (item: T) => React.ReactNode;
 }
 
 function ReorderableCell<T extends ReorderableItem>({
   item,
+  initialIndex,
   order,
-  activeId,
   numColumns,
   cellSize,
   gap,
   count,
-  enabled,
-  onCommit,
+  onReorder,
   onPress,
   children,
 }: CellProps<T>) {
-  const index = order.value.indexOf(item.id);
-  const start = positionOf(index < 0 ? 0 : index, numColumns, cellSize, gap);
-  const translateX = useSharedValue(start.x);
-  const translateY = useSharedValue(start.y);
+  const home = positionOf(initialIndex, numColumns, cellSize, gap);
+  const translateX = useSharedValue(home.x);
+  const translateY = useSharedValue(home.y);
+  const originX = useSharedValue(home.x);
+  const originY = useSharedValue(home.y);
   const dragging = useSharedValue(false);
 
   useAnimatedReaction(
@@ -135,7 +127,7 @@ function ReorderableCell<T extends ReorderableItem>({
     (position, previous) => {
       if (position < 0 || dragging.value) return;
       const target = positionOf(position, numColumns, cellSize, gap);
-      if (previous === null) {
+      if (previous === null || previous < 0) {
         translateX.value = target.x;
         translateY.value = target.y;
         return;
@@ -147,21 +139,20 @@ function ReorderableCell<T extends ReorderableItem>({
   );
 
   const pan = Gesture.Pan()
-    .activateAfterLongPress(220)
-    .enabled(enabled)
+    .activateAfterLongPress(250)
     .onStart(() => {
       dragging.value = true;
-      activeId.value = item.id;
+      // what: the finger must track from where the cell already sits, not its live index
+      originX.value = translateX.value;
+      originY.value = translateY.value;
     })
     .onUpdate((event) => {
-      const from = order.value.indexOf(item.id);
-      if (from < 0) return;
-      const home = positionOf(from, numColumns, cellSize, gap);
-      translateX.value = home.x + event.translationX;
-      translateY.value = home.y + event.translationY;
+      translateX.value = originX.value + event.translationX;
+      translateY.value = originY.value + event.translationY;
 
+      const from = order.value.indexOf(item.id);
       const to = indexAt(translateX.value, translateY.value, numColumns, cellSize, gap, count);
-      if (to !== from) {
+      if (from >= 0 && to !== from) {
         const next = [...order.value];
         next.splice(from, 1);
         next.splice(to, 0, item.id);
@@ -177,8 +168,7 @@ function ReorderableCell<T extends ReorderableItem>({
     .onFinalize(() => {
       if (!dragging.value) return;
       dragging.value = false;
-      activeId.value = null;
-      runOnJS(onCommit)(order.value);
+      runOnJS(onReorder)([...order.value]);
     });
 
   const tap = Gesture.Tap().onEnd((_event, success) => {
@@ -192,18 +182,18 @@ function ReorderableCell<T extends ReorderableItem>({
     transform: [
       { translateX: translateX.value },
       { translateY: translateY.value },
-      { scale: withTiming(dragging.value ? 1.08 : 1, { duration: 140 }) },
+      { scale: withTiming(dragging.value ? 1.1 : 1, { duration: 120 }) },
     ],
-    zIndex: dragging.value ? 10 : 0,
+    zIndex: dragging.value ? 20 : 0,
     shadowColor: "#000",
-    shadowOpacity: withTiming(dragging.value ? 0.45 : 0, { duration: 140 }),
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: withTiming(dragging.value ? 0.5 : 0, { duration: 120 }),
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
   }));
 
   return (
-    <GestureDetector gesture={Gesture.Race(pan, tap)}>
-      <Animated.View style={style}>{children(item, false)}</Animated.View>
+    <GestureDetector gesture={Gesture.Exclusive(pan, tap)}>
+      <Animated.View style={style}>{children(item)}</Animated.View>
     </GestureDetector>
   );
 }

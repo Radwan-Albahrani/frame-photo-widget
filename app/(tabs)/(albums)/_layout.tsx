@@ -10,8 +10,26 @@ export default function AlbumsStackLayout() {
         options={{
           presentation: "formSheet",
           sheetAllowedDetents: [0.34],
-          headerShown: false,
           sheetGrabberVisible: true,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="album-actions"
+        options={{
+          presentation: "formSheet",
+          sheetAllowedDetents: [0.55, 0.95],
+          sheetGrabberVisible: true,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="group-actions"
+        options={{
+          presentation: "formSheet",
+          sheetAllowedDetents: [0.55, 0.95],
+          sheetGrabberVisible: true,
+          headerShown: false,
         }}
       />
     </Stack>

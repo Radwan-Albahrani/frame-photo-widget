@@ -11,7 +11,7 @@ export type { SnapshotAlbum, SnapshotGroup, WidgetSnapshot } from "@backend/api/
 export class WidgetService {
   static async build(): Promise<WidgetSnapshot> {
     const albums = await AlbumsService.list();
-    const groups = await GroupsService.list();
+    const groups = await GroupsService.all();
     const photosByAlbum = new Map<string, { fileName: string }[]>();
     for (const album of albums) {
       photosByAlbum.set(album.id, await PhotosService.listByAlbum(album.id));

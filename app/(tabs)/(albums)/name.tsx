@@ -9,7 +9,12 @@ import { colors, radius, space } from "@ui/theme";
 
 export default function NameScreen() {
   const router = useRouter();
-  const { id, kind } = useLocalSearchParams<{ id?: string; kind?: string }>();
+  const { id, kind, parent } = useLocalSearchParams<{
+    id?: string;
+    kind?: string;
+    parent?: string;
+  }>();
+  const parentId = typeof parent === "string" && parent.length > 0 ? parent : null;
   const isGroup = kind === "group";
   const editing = typeof id === "string" && id.length > 0;
   const [value, setValue] = useState("");
@@ -18,9 +23,8 @@ export default function NameScreen() {
   useEffect(() => {
     if (!editing) return;
     if (isGroup) {
-      GroupsService.list().then((groups) => {
-        const match = groups.find((group) => group.id === id);
-        if (match !== undefined) setValue(match.name);
+      GroupsService.byId(id).then((group) => {
+        if (group !== null) setValue(group.name);
       });
       return;
     }
@@ -35,7 +39,8 @@ export default function NameScreen() {
     if (trimmed.length === 0) return;
     if (isGroup) {
       if (editing) await GroupsService.rename(id, trimmed);
-      else await GroupsService.create(trimmed);
+      else await GroupsService.create(trimmed, parentId ?? null);
+      await WidgetService.sync();
       router.back();
       return;
     }
@@ -112,6 +117,7 @@ export default function NameScreen() {
         onConfirm={() => {
           void (async () => {
             if (editing) await GroupsService.remove(id);
+            await WidgetService.sync();
             setConfirmingDelete(false);
             router.back();
           })();

@@ -24,6 +24,7 @@ struct Album: Identifiable, Hashable {
 struct PhotoGroup: Identifiable, Hashable {
   let id: String
   let name: String
+  let parentId: String?
 }
 
 struct WidgetSettings: Codable {
@@ -82,12 +83,34 @@ enum FrameStore {
     }
   }
 
+  /// Every group in the subtree rooted at `id`, so a folder plays its nested folders too.
+  static func descendantGroupIds(of id: String) -> Set<String> {
+    let all = groups()
+    var collected: Set<String> = [id]
+    var frontier: Set<String> = [id]
+    while !frontier.isEmpty {
+      let next = all.filter { group in
+        guard let parent = group.parentId else { return false }
+        return frontier.contains(parent)
+      }
+      let fresh = Set(next.map { $0.id }).subtracting(collected)
+      if fresh.isEmpty { break }
+      collected.formUnion(fresh)
+      frontier = fresh
+    }
+    return collected
+  }
+
   /// A specific album wins; otherwise a whole group is flattened into one rotating set.
   static func resolve(albumId: String?, groupId: String?) -> Album? {
     let all = albums()
     if let albumId, let match = all.first(where: { $0.id == albumId }) { return match }
     if let groupId {
-      let members = all.filter { $0.groupId == groupId }
+      let branch = descendantGroupIds(of: groupId)
+      let members = all.filter { album in
+        guard let albumGroup = album.groupId else { return false }
+        return branch.contains(albumGroup)
+      }
       if !members.isEmpty {
         let name = groups().first(where: { $0.id == groupId })?.name ?? ""
         return Album(
@@ -109,6 +132,7 @@ private struct SnapshotAlbum: Codable {
 private struct SnapshotGroup: Codable {
   let id: String
   let name: String
+  let parentId: String?
 }
 
 private struct SnapshotPayload: Codable {
@@ -132,7 +156,7 @@ enum SnapshotSource {
   }
 
   static func groups() -> [PhotoGroup] {
-    (payload()?.groups ?? []).map { PhotoGroup(id: $0.id, name: $0.name) }
+    (payload()?.groups ?? []).map { PhotoGroup(id: $0.id, name: $0.name, parentId: $0.parentId) }
   }
 }
 
@@ -193,7 +217,8 @@ enum SQLiteSource {
     guard let handle = openDatabase() else { return [] }
     defer { sqlite3_close(handle) }
 
-    let sql = "SELECT id, name FROM album_groups ORDER BY sort_order ASC, created_at ASC"
+    let sql =
+      "SELECT id, name, parent_id FROM album_groups ORDER BY sort_order ASC, created_at ASC"
     var statement: OpaquePointer?
     guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
     defer { sqlite3_finalize(statement) }
@@ -202,7 +227,8 @@ enum SQLiteSource {
     while sqlite3_step(statement) == SQLITE_ROW {
       guard let idText = sqlite3_column_text(statement, 0) else { continue }
       let name = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
-      result.append(PhotoGroup(id: String(cString: idText), name: name))
+      let parent = sqlite3_column_text(statement, 2).map { String(cString: $0) }
+      result.append(PhotoGroup(id: String(cString: idText), name: name, parentId: parent))
     }
     return result
   }
@@ -335,19 +361,27 @@ struct SelectAlbumIntent: WidgetConfigurationIntent {
   static var description = IntentDescription(
     "Show one album, or every album in a group.")
 
-  @Parameter(title: "Album")
-  var album: AlbumEntity?
-
   @Parameter(title: "Group")
   var group: GroupEntity?
+
+  @Parameter(title: "Album")
+  var album: AlbumEntity?
 
   @Parameter(title: "Shuffle", default: false)
   var shuffle: Bool
 
+  static var parameterSummary: some ParameterSummary {
+    Summary {
+      \.$group
+      \.$album
+      \.$shuffle
+    }
+  }
+
   init() {}
-  init(album: AlbumEntity?, group: GroupEntity?, shuffle: Bool) {
-    self.album = album
+  init(group: GroupEntity?, album: AlbumEntity?, shuffle: Bool) {
     self.group = group
+    self.album = album
     self.shuffle = shuffle
   }
 }

@@ -1,3 +1,4 @@
+import CryptoKit
 import ExpoModulesCore
 import ImageIO
 import UIKit
@@ -82,12 +83,14 @@ public final class FramePhotoStoreModule: Module {
       }
       let destination = try photosDirectory().appendingPathComponent(fileName)
       try data.write(to: destination, options: .atomic)
+      let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
       return [
         "fileName": fileName,
         "uri": destination.absoluteString,
         "width": Int(image.size.width * image.scale),
         "height": Int(image.size.height * image.scale),
         "bytes": data.count,
+        "contentHash": digest,
       ]
     }
 

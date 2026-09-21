@@ -6,3 +6,4 @@ export { SettingRow } from "@ui/components/layout/SettingRow";
 export { SectionHeader } from "@ui/components/layout/SectionHeader";
 export { ConfirmDialog } from "@ui/components/overlays/ConfirmDialog";
 export { AlbumCard } from "@ui/components/media/AlbumCard";
+export { GroupCard } from "@ui/components/media/GroupCard";

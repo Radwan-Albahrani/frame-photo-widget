@@ -3,6 +3,7 @@ import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 export const albumGroups = sqliteTable("album_groups", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  parentId: text("parent_id"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
@@ -26,6 +27,8 @@ export const photos = sqliteTable(
       .notNull()
       .references(() => albums.id, { onDelete: "cascade" }),
     fileName: text("file_name").notNull(),
+    assetId: text("asset_id"),
+    contentHash: text("content_hash"),
     width: integer("width").notNull().default(0),
     height: integer("height").notNull().default(0),
     bytes: integer("bytes").notNull().default(0),

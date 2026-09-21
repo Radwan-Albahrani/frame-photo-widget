@@ -12,7 +12,7 @@ describe("toSnapshot", () => {
         ["a", [{ fileName: "1.jpg" }, { fileName: "2.jpg" }]],
         ["b", [{ fileName: "3.jpg" }]],
       ]),
-      [{ id: "g1", name: "Page 1" }],
+      [{ id: "g1", name: "Page 1", parentId: null }],
       42
     );
 
@@ -21,7 +21,7 @@ describe("toSnapshot", () => {
     expect(snapshot.albums[0].photos).toEqual(["1.jpg", "2.jpg"]);
     expect(snapshot.albums[0].groupId).toBe("g1");
     expect(snapshot.albums[1].groupId).toBeNull();
-    expect(snapshot.groups).toEqual([{ id: "g1", name: "Page 1" }]);
+    expect(snapshot.groups).toEqual([{ id: "g1", name: "Page 1", parentId: null }]);
   });
 
   it("emits an empty photo list for an album with no photos", () => {

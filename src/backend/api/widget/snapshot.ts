@@ -10,6 +10,7 @@ export interface SnapshotAlbum {
 export interface SnapshotGroup {
   id: string;
   name: string;
+  parentId: string | null;
 }
 
 export interface WidgetSnapshot {
@@ -21,7 +22,7 @@ export interface WidgetSnapshot {
 export function toSnapshot(
   albums: Pick<AlbumRow, "id" | "name" | "groupId">[],
   photosByAlbum: Map<string, Pick<PhotoRow, "fileName">[]>,
-  groups: Pick<AlbumGroupRow, "id" | "name">[],
+  groups: Pick<AlbumGroupRow, "id" | "name" | "parentId">[],
   generatedAt: number
 ): WidgetSnapshot {
   return {
@@ -31,7 +32,11 @@ export function toSnapshot(
       groupId: album.groupId,
       photos: (photosByAlbum.get(album.id) ?? []).map((photo) => photo.fileName),
     })),
-    groups: groups.map((group) => ({ id: group.id, name: group.name })),
+    groups: groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      parentId: group.parentId,
+    })),
     generatedAt,
   };
 }

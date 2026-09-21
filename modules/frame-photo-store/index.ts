@@ -6,6 +6,7 @@ export interface SavedPhoto {
   width: number;
   height: number;
   bytes: number;
+  contentHash: string;
 }
 
 interface FramePhotoStoreModule {

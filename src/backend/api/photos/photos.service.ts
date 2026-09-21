@@ -23,7 +23,10 @@ export class PhotosService {
     return row?.value ?? 0;
   }
 
-  static async add(albumId: string, sourceUris: string[]): Promise<PhotoRow[]> {
+  static async add(
+    albumId: string,
+    sources: { uri: string; assetId?: string | null }[]
+  ): Promise<PhotoRow[]> {
     const highest = await db
       .select({ value: sql<number>`coalesce(max(${photos.sortOrder}), -1)` })
       .from(photos)
@@ -32,14 +35,16 @@ export class PhotosService {
     let order = (highest?.value ?? -1) + 1;
     const created: PhotoRow[] = [];
 
-    for (const sourceUri of sourceUris) {
+    for (const source of sources) {
       const id = createId();
-      const saved = await savePhoto(sourceUri, `${id}.jpg`);
+      const saved = await savePhoto(source.uri, `${id}.jpg`);
       if (saved === null) continue;
       const row: PhotoRow = {
         id,
         albumId,
         fileName: saved.fileName,
+        assetId: source.assetId ?? null,
+        contentHash: saved.contentHash,
         width: saved.width,
         height: saved.height,
         bytes: saved.bytes,

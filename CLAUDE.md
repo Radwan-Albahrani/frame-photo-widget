@@ -61,6 +61,25 @@ Use the real native component, never a replica: `NativeTabs`, `Stack.Screen.Titl
 `ReactNode` slot crashes the app on launch with a `RawText` exception, and changing
 `userInterfaceStyle` needs a **prebuild**, not just an `app.json` edit.
 
+## Migrations — ORDER IS THE WHOLE POINT
+
+`src/backend/core/db/migrations.ts` runs in three phases and they may not be interleaved:
+
+1. `TABLES` — `CREATE TABLE IF NOT EXISTS`
+2. `COLUMNS` — guarded `ALTER TABLE ... ADD COLUMN` for anything added after the first release
+3. `INDEXES` — `CREATE INDEX IF NOT EXISTS`
+
+**A new column goes in BOTH the `CREATE TABLE` and the `COLUMNS` list.** A fresh install gets it from
+the table definition; an upgrade gets it from the ALTER. Miss the second and the column is absent on
+every existing install.
+
+**An index on a new column must come after that column is added.** Shipping
+`CREATE INDEX ... ON photos (content_hash)` in the same list as the table definitions crashed 1.0.0 (5)
+on launch for anyone upgrading: `CREATE TABLE IF NOT EXISTS` is a no-op on an existing database, so
+the index referenced a column that did not exist yet, and a JS throw during `migrate()` is fatal in a
+Release build. `src/backend/core/db/tests/migrations.test.ts` replays the real 1.0.0 (2) and 1.0.0 (4)
+schemas through `node:sqlite` and asserts rows survive; add a case there for every schema change.
+
 ## Where things live
 
 ```

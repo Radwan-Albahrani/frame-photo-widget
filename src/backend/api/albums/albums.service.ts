@@ -36,6 +36,11 @@ export class AlbumsService {
     return rows as AlbumWithCount[];
   }
 
+  static async inGroup(groupId: string | null): Promise<AlbumWithCount[]> {
+    const all = await AlbumsService.list();
+    return all.filter((album) => album.groupId === groupId);
+  }
+
   static async byId(id: string): Promise<AlbumRow | null> {
     const row = await db.select().from(albums).where(eq(albums.id, id)).get();
     return row ?? null;

@@ -6,10 +6,10 @@ import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, ScrollView, View, useWindowDimensions } from "react-native";
 import { AlbumsService } from "@backend/api/albums/albums.service";
-import { GroupsService } from "@backend/api/groups/groups.service";
+import { GroupsService, type GroupNode } from "@backend/api/groups/groups.service";
 import { PhotosService } from "@backend/api/photos/photos.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
-import type { AlbumGroupRow, PhotoRow } from "@backend/core/db/schema";
+import type { PhotoRow } from "@backend/core/db/schema";
 import { photoUri } from "@native/photoStore";
 import { ConfirmDialog, EmptyState, Text } from "@ui/components";
 import { ReorderableGrid } from "@ui/components/media/ReorderableGrid";
@@ -25,7 +25,7 @@ export default function AlbumScreen() {
   const [selected, setSelected] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [groups, setGroups] = useState<AlbumGroupRow[]>([]);
+  const [groups, setGroups] = useState<GroupNode[]>([]);
   const [groupId, setGroupId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -36,7 +36,7 @@ export default function AlbumScreen() {
     }
     setName(album.name);
     setGroupId(album.groupId);
-    setGroups(await GroupsService.list());
+    setGroups(await GroupsService.tree());
     setPhotos(await PhotosService.listByAlbum(id));
   }, [id, router]);
 
@@ -57,7 +57,7 @@ export default function AlbumScreen() {
     setImporting(true);
     await PhotosService.add(
       id,
-      result.assets.map((asset) => asset.uri)
+      result.assets.map((asset) => ({ uri: asset.uri, assetId: asset.assetId ?? null }))
     );
     setImporting(false);
     await reload();
@@ -99,6 +99,7 @@ export default function AlbumScreen() {
     async (nextGroupId: string | null) => {
       await AlbumsService.setGroup(id, nextGroupId);
       setGroupId(nextGroupId);
+      await WidgetService.sync();
       Haptics.selectionAsync();
     },
     [id]
@@ -252,7 +253,7 @@ export default function AlbumScreen() {
                 icon={groupId === group.id ? "checkmark" : "folder"}
                 onPress={() => void moveToGroup(group.id)}
               >
-                {group.name}
+                {group.path}
               </Stack.Toolbar.MenuAction>
             ))}
           </Stack.Toolbar.Menu>
