@@ -114,6 +114,29 @@ limit is the number that matters, and it is identical either way, so pick on rob
 
 Keep both working. The setting that switches them is in Settings → Widget data source.
 
+## Groups, and how the picker narrows
+
+Albums can belong to a **group** (`album_groups` table, `albums.group_id`). A group is purely an
+organising layer — photos still live in albums.
+
+The widget's configuration has two entity parameters:
+
+- **Group** (`GroupEntity`) — optional.
+- **Album** (`AlbumEntity`) — its query carries
+  `@IntentParameterDependency<SelectAlbumIntent>(\.$group)`, so **choosing a group filters the album
+  list to that group's albums**. With no group chosen the list shows every album, each subtitled with
+  its group name. This exists because the flat album list becomes unusable once someone has a few
+  dozen albums.
+
+`FrameStore.resolve(albumId:groupId:)` decides what actually plays, in this order:
+
+1. a specific album, if one is chosen;
+2. otherwise the whole group, flattened into one rotating set across all its albums;
+3. otherwise the first album.
+
+Both data sources carry groups: the snapshot JSON gained a `groups` array and a `groupId` per album,
+and the SQLite source reads `album_groups` plus `albums.group_id`.
+
 ## Configuration: per-widget album choice
 
 The album picker in the widget's edit sheet is an **`AppIntentConfiguration`**, not a
