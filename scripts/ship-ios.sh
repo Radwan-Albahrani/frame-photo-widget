@@ -124,9 +124,17 @@ if [ "$SKIP_UPLOAD" -eq 0 ]; then
 fi
 
 step "Waiting for App Store Connect to process the build"
+# Wait on the exact build in the IPA. "--latest --since" matched the previous upload when two builds
+# went up within the clock-skew pad, and the run then reported (and could submit) the wrong build.
+BUILD_SELECTOR=(--latest)
+if [ -f "$IPA" ]; then
+  IPA_BUILD="$(unzip -p "$IPA" 'Payload/*.app/Info.plist' | plutil -extract CFBundleVersion raw -o - -)"
+  BUILD_SELECTOR=(--build-number "$IPA_BUILD")
+  note "waiting on build $IPA_BUILD"
+fi
 WAIT_JSON="$(asc builds wait \
   --app "$APP_ID" \
-  --latest \
+  "${BUILD_SELECTOR[@]}" \
   --version "$VERSION" \
   --platform IOS \
   --since "$SINCE" \
