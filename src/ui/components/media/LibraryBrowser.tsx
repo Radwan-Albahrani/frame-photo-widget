@@ -17,6 +17,9 @@ import { AlbumCard } from "@ui/components/media/AlbumCard";
 import { GroupCard } from "@ui/components/media/GroupCard";
 import { ConfirmDialog } from "@ui/components/overlays/ConfirmDialog";
 import { groupCountLabel, photoCountLabel } from "@ui/format";
+import { albumHeaders } from "@ui/header/albumHeader";
+import { folderHeaders } from "@ui/header/folderHeader";
+import { zoomParams } from "@ui/zoom";
 import {
   type DragItem,
   type DragKind,
@@ -37,6 +40,14 @@ const ALBUM_ACCEPTS: DragKind[] = ["album"];
 
 interface LibraryBrowserProps {
   groupId: string | null;
+}
+
+function folderZoomId(id: string): string {
+  return `folder:${id}`;
+}
+
+function albumZoomId(id: string): string {
+  return `album:${id}`;
 }
 
 function moveSubactions(folders: GroupNode[], currentId: string | null): MenuAction[] {
@@ -200,8 +211,32 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
     [moveItems, deleteAlbum, router]
   );
 
-  const openFolder = (group: GroupWithCounts) =>
-    router.push({ pathname: "/group/[id]", params: { id: group.id, name: group.name } });
+  const openFolder = (group: GroupWithCounts) => {
+    const blocked = subtrees[group.id] ?? [group.id];
+    folderHeaders.set(group.id, {
+      name: group.name,
+      parentId: group.parentId,
+      targets: folders.filter((folder) => !blocked.includes(folder.id)),
+    });
+    router.push({
+      pathname: "/group/[id]",
+      params: { id: group.id, ...zoomParams(folderZoomId(group.id)) },
+    });
+  };
+
+  const openAlbum = (album: AlbumWithCount) => {
+    albumHeaders.set(album.id, {
+      name: album.name,
+      groupId: album.groupId,
+      groups: folders,
+      selectedCount: 0,
+      onlySelected: null,
+    });
+    router.push({
+      pathname: "/album/[id]",
+      params: { id: album.id, ...zoomParams(albumZoomId(album.id)) },
+    });
+  };
 
   const cardSize = (width - space.lg * (COLUMNS + 1)) / COLUMNS;
   const isEmpty = groups.length === 0 && albums.length === 0;
@@ -277,6 +312,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
                     folderCount={group.childGroupCount}
                     coverUris={covers[group.id] ?? []}
                     size={cardSize}
+                    zoomSourceId={folderZoomId(group.id)}
                   />
                 </HoldMenu>
               );
@@ -286,12 +322,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
                 <HoldMenu
                   actions={cardActions(moveSubactions(folders, album.groupId), "Delete album")}
                   onPressAction={(event) => onAlbumAction(album, event)}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/album/[id]",
-                      params: { id: album.id, name: album.name },
-                    })
-                  }
+                  onPress={() => openAlbum(album)}
                   title={album.name}
                   accessibilityLabel={`${album.name}, ${photoCountLabel(album.photoCount)}`}
                   accessibilityHint="Touch and hold for album actions, or drag it onto a folder or album"
@@ -307,6 +338,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
                     coverUri={album.coverFileName === null ? null : photoUri(album.coverFileName)}
                     size={cardSize}
                     recyclingKey={album.id}
+                    zoomSourceId={albumZoomId(album.id)}
                   />
                 </HoldMenu>
                 {deleteTargetId === album.id ? (

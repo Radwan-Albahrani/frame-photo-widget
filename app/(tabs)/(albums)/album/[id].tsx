@@ -1,11 +1,11 @@
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { memo, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, ScrollView, View, useWindowDimensions } from "react-native";
 import { AlbumsService } from "@backend/api/albums/albums.service";
-import { GroupsService, type GroupNode } from "@backend/api/groups/groups.service";
+import { GroupsService } from "@backend/api/groups/groups.service";
 import { PhotosService } from "@backend/api/photos/photos.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import type { PhotoRow } from "@backend/core/db/schema";
@@ -13,9 +13,14 @@ import { photoUri } from "@native/photoStore";
 import { ConfirmDialog, EmptyState, Text } from "@ui/components";
 import { photoCountLabel } from "@ui/format";
 import { ReorderableGrid } from "@ui/components/media/ReorderableGrid";
-import { useRenamedTitle } from "@ui/routeTitle";
+import {
+  albumHeaderItems,
+  albumHeaders,
+  albumTitle,
+  sameAlbumHeader,
+} from "@ui/header/albumHeader";
+import { useScreenHeader } from "@ui/header/useScreenHeader";
 import { colors, radius, space } from "@ui/theme";
-import { useSettledState } from "@ui/useSettledState";
 
 function samePhotos(a: PhotoRow[], b: PhotoRow[]): boolean {
   return (
@@ -27,31 +32,23 @@ function samePhotos(a: PhotoRow[], b: PhotoRow[]): boolean {
   );
 }
 
-interface AlbumHeader {
-  name: string;
-  groupId: string | null;
-  groups: GroupNode[];
-}
-
-function sameAlbumHeader(a: AlbumHeader, b: AlbumHeader): boolean {
-  return a.name === b.name && a.groupId === b.groupId && GroupsService.sameTree(a.groups, b.groups);
-}
-
 export default function AlbumScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { id, name: routeName } = useLocalSearchParams<{ id: string; name?: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [header, commitHeader] = useSettledState<AlbumHeader>(
-    { name: routeName ?? "", groupId: null, groups: [] },
-    sameAlbumHeader
-  );
+  const [header, commitHeader] = useScreenHeader({
+    store: albumHeaders,
+    id,
+    same: sameAlbumHeader,
+    title: albumTitle,
+    items: albumHeaderItems,
+  });
   const [photos, setPhotos] = useState<PhotoRow[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { name } = header;
-  useRenamedTitle(name, routeName);
 
   const reload = useCallback(async () => {
     const [album, tree, rows] = await Promise.all([
@@ -63,14 +60,25 @@ export default function AlbumScreen() {
       router.back();
       return;
     }
-    commitHeader({ name: album.name, groupId: album.groupId, groups: tree });
+    commitHeader({
+      ...albumHeaders.state(id),
+      name: album.name,
+      groupId: album.groupId,
+      groups: tree,
+    });
     setPhotos((current) => (samePhotos(current, rows) ? current : rows));
   }, [id, router, commitHeader]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void reload();
-    }, [reload])
+  const select = useCallback(
+    (next: string[]) => {
+      setSelected(next);
+      commitHeader({
+        ...albumHeaders.state(id),
+        selectedCount: next.length,
+        onlySelected: next.length === 1 ? (next[0] ?? null) : null,
+      });
+    },
+    [id, commitHeader]
   );
 
   const addPhotos = useCallback(async () => {
@@ -85,42 +93,42 @@ export default function AlbumScreen() {
 
   const removeSelected = useCallback(async () => {
     await PhotosService.remove(selected);
-    setSelected([]);
+    select([]);
     await reload();
     await WidgetService.sync();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, [selected, reload]);
+  }, [selected, reload, select]);
 
   const makeCover = useCallback(
     async (photoId: string) => {
       await AlbumsService.setCover(id, photoId);
-      setSelected([]);
+      select([]);
       await reload();
       await WidgetService.sync();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
-    [id, reload]
+    [id, reload, select]
   );
 
   const moveToFront = useCallback(
     async (photoId: string) => {
       await PhotosService.moveToFront(id, photoId);
-      setSelected([]);
+      select([]);
       await reload();
       await WidgetService.sync();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     },
-    [id, reload]
+    [id, reload, select]
   );
 
   const moveToGroup = useCallback(
     async (nextGroupId: string | null) => {
       await AlbumsService.setGroup(id, nextGroupId);
-      commitHeader({ ...header, groupId: nextGroupId });
+      commitHeader({ ...albumHeaders.state(id), groupId: nextGroupId });
       await WidgetService.sync();
       Haptics.selectionAsync();
     },
-    [id, header, commitHeader]
+    [id, commitHeader]
   );
 
   const applyOrder = useCallback(
@@ -150,18 +158,35 @@ export default function AlbumScreen() {
     setConfirmingDelete(true);
   }, [id, deleteAlbum]);
 
-  const deselect = useCallback(() => setSelected([]), []);
-
-  const rename = useCallback(
-    () => router.push({ pathname: "/name", params: { id } }),
-    [id, router]
-  );
-
   const columns = 3;
   const gutter = 6;
   const cell = (width - gutter * (columns + 1)) / columns;
   const selecting = selected.length > 0;
-  const onlySelected = selected.length === 1 ? selected[0] : null;
+
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+      return albumHeaders.bind(id, {
+        add: () => void addPhotos(),
+        removeSelected: () => void removeSelected(),
+        makeCover: (photoId) => void makeCover(photoId),
+        moveToFront: (photoId) => void moveToFront(photoId),
+        deselect: () => select([]),
+        move: (groupId) => void moveToGroup(groupId),
+        remove: () => void requestDelete(),
+      });
+    }, [
+      id,
+      reload,
+      addPhotos,
+      removeSelected,
+      makeCover,
+      moveToFront,
+      select,
+      moveToGroup,
+      requestDelete,
+    ])
+  );
 
   return (
     <>
@@ -196,10 +221,10 @@ export default function AlbumScreen() {
               gap={gutter}
               onReorder={(orderedIds) => void applyOrder(orderedIds)}
               onPress={(photo) =>
-                setSelected((current) =>
-                  current.includes(photo.id)
-                    ? current.filter((value) => value !== photo.id)
-                    : [...current, photo.id]
+                select(
+                  selected.includes(photo.id)
+                    ? selected.filter((value) => value !== photo.id)
+                    : [...selected, photo.id]
                 )
               }
               renderItem={(photo) => (
@@ -235,21 +260,6 @@ export default function AlbumScreen() {
         </View>
       ) : null}
 
-      <AlbumToolbar
-        selecting={selecting}
-        onlySelected={onlySelected}
-        groupId={header.groupId}
-        groups={header.groups}
-        onAdd={addPhotos}
-        onRemoveSelected={removeSelected}
-        onMakeCover={makeCover}
-        onMoveToFront={moveToFront}
-        onDeselect={deselect}
-        onRename={rename}
-        onMove={moveToGroup}
-        onDelete={requestDelete}
-      />
-
       <ConfirmDialog
         visible={confirmingDelete}
         title={`Delete "${name}"?`}
@@ -261,103 +271,6 @@ export default function AlbumScreen() {
     </>
   );
 }
-
-interface AlbumToolbarProps {
-  selecting: boolean;
-  onlySelected: string | null;
-  groupId: string | null;
-  groups: GroupNode[];
-  onAdd: () => Promise<void>;
-  onRemoveSelected: () => Promise<void>;
-  onMakeCover: (photoId: string) => Promise<void>;
-  onMoveToFront: (photoId: string) => Promise<void>;
-  onDeselect: () => void;
-  onRename: () => void;
-  onMove: (groupId: string | null) => Promise<void>;
-  onDelete: () => Promise<void>;
-}
-
-const AlbumToolbar = memo(function AlbumToolbar({
-  selecting,
-  onlySelected,
-  groupId,
-  groups,
-  onAdd,
-  onRemoveSelected,
-  onMakeCover,
-  onMoveToFront,
-  onDeselect,
-  onRename,
-  onMove,
-  onDelete,
-}: AlbumToolbarProps) {
-  return (
-    <Stack.Toolbar placement="right">
-      {selecting ? (
-        <Stack.Toolbar.Button
-          icon="trash"
-          tintColor={colors.error}
-          accessibilityLabel="Delete selected photos"
-          onPress={() => void onRemoveSelected()}
-        />
-      ) : (
-        <Stack.Toolbar.Button
-          icon="plus"
-          tintColor={colors.accent}
-          accessibilityLabel="Add photos"
-          onPress={() => void onAdd()}
-        />
-      )}
-      <Stack.Toolbar.Menu
-        icon="ellipsis"
-        tintColor={colors.accent}
-        accessibilityLabel="Album options"
-      >
-        {onlySelected === null ? null : (
-          <Stack.Toolbar.MenuAction icon="star" onPress={() => void onMakeCover(onlySelected)}>
-            Use as cover
-          </Stack.Toolbar.MenuAction>
-        )}
-        {onlySelected === null ? null : (
-          <Stack.Toolbar.MenuAction
-            icon="arrow.up.to.line"
-            onPress={() => void onMoveToFront(onlySelected)}
-          >
-            Show first
-          </Stack.Toolbar.MenuAction>
-        )}
-        {selecting ? (
-          <Stack.Toolbar.MenuAction icon="xmark.circle" onPress={onDeselect}>
-            Deselect
-          </Stack.Toolbar.MenuAction>
-        ) : null}
-        <Stack.Toolbar.MenuAction icon="pencil" onPress={onRename}>
-          Rename
-        </Stack.Toolbar.MenuAction>
-        <Stack.Toolbar.Menu icon="folder" title="Move to folder">
-          <Stack.Toolbar.MenuAction
-            icon={groupId === null ? "checkmark" : "tray"}
-            onPress={() => void onMove(null)}
-          >
-            No folder
-          </Stack.Toolbar.MenuAction>
-          {groups.map((group) => (
-            <Stack.Toolbar.MenuAction
-              key={group.id}
-              icon={groupId === group.id ? "checkmark" : "folder"}
-              onPress={() => void onMove(group.id)}
-            >
-              {group.path}
-            </Stack.Toolbar.MenuAction>
-          ))}
-        </Stack.Toolbar.Menu>
-        <Stack.Toolbar.MenuAction icon="trash" destructive onPress={() => void onDelete()}>
-          Delete album
-        </Stack.Toolbar.MenuAction>
-      </Stack.Toolbar.Menu>
-    </Stack.Toolbar>
-  );
-});
 
 function PhotoCell({
   photo,

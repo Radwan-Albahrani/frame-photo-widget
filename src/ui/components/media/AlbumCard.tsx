@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { Text } from "@ui/components/primitives/Text";
 import { photoCountLabel } from "@ui/format";
 import { colors, radius, space } from "@ui/theme";
+import { LinkZoomTransitionSource } from "@ui/zoom";
 
 interface AlbumCardProps {
   name: string;
@@ -11,12 +12,20 @@ interface AlbumCardProps {
   coverUri: string | null;
   size: number;
   recyclingKey: string;
+  zoomSourceId: string;
 }
 
 const STACK_INSET = 10;
 const STACK_OFFSET = 6;
 
-export function AlbumCard({ name, photoCount, coverUri, size, recyclingKey }: AlbumCardProps) {
+export function AlbumCard({
+  name,
+  photoCount,
+  coverUri,
+  size,
+  recyclingKey,
+  zoomSourceId,
+}: AlbumCardProps) {
   const stacked = photoCount > 1;
   const coverHeight = stacked ? size - STACK_OFFSET * 2 : size;
 
@@ -51,33 +60,36 @@ export function AlbumCard({ name, photoCount, coverUri, size, recyclingKey }: Al
             ]}
           />
         ) : null}
-        <View
-          style={{
-            width: size,
-            height: coverHeight,
-            borderRadius: radius.xl,
-            borderCurve: "continuous",
-            overflow: "hidden",
-            backgroundColor: colors.surfaceElevated,
-            alignItems: "center",
-            justifyContent: "center",
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: colors.rimLight,
-          }}
-        >
-          {coverUri === null ? (
-            <SymbolView name="photo" tintColor={colors.inkSubtle} size={28} />
-          ) : (
-            <Image
-              source={{ uri: coverUri }}
-              style={{ width: "100%", height: "100%" }}
-              contentFit="cover"
-              cachePolicy="disk"
-              recyclingKey={recyclingKey}
-              transition={180}
-            />
-          )}
-        </View>
+        <LinkZoomTransitionSource identifier={zoomSourceId}>
+          <View
+            collapsable={false}
+            style={{
+              width: size,
+              height: coverHeight,
+              borderRadius: radius.xl,
+              borderCurve: "continuous",
+              overflow: "hidden",
+              backgroundColor: colors.surfaceElevated,
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.rimLight,
+            }}
+          >
+            {coverUri === null ? (
+              <SymbolView name="photo" tintColor={colors.inkSubtle} size={28} />
+            ) : (
+              <Image
+                source={{ uri: coverUri }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+                cachePolicy="disk"
+                recyclingKey={recyclingKey}
+                transition={180}
+              />
+            )}
+          </View>
+        </LinkZoomTransitionSource>
       </View>
 
       <View style={{ gap: 1 }}>

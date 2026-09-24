@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { Text } from "@ui/components/primitives/Text";
 import { groupCountLabel } from "@ui/format";
 import { colors, radius, space } from "@ui/theme";
+import { LinkZoomTransitionSource } from "@ui/zoom";
 
 interface GroupCardProps {
   name: string;
@@ -11,11 +12,19 @@ interface GroupCardProps {
   folderCount: number;
   coverUris: (string | null)[];
   size: number;
+  zoomSourceId: string;
 }
 
 const TILE_GAP = 4;
 
-export function GroupCard({ name, albumCount, folderCount, coverUris, size }: GroupCardProps) {
+export function GroupCard({
+  name,
+  albumCount,
+  folderCount,
+  coverUris,
+  size,
+  zoomSourceId,
+}: GroupCardProps) {
   const padding = space.sm;
   const mosaic = size - padding * 2;
   const tile = (mosaic - TILE_GAP) / 2;
@@ -36,40 +45,43 @@ export function GroupCard({ name, albumCount, folderCount, coverUris, size }: Gr
           borderColor: colors.hairline,
         }}
       >
-        <View
-          style={{
-            width: mosaic,
-            height: mosaic,
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: TILE_GAP,
-          }}
-        >
-          {tiles.map((entry) => (
-            <View
-              key={entry.slot}
-              style={{
-                width: tile,
-                height: tile,
-                borderRadius: radius.sm,
-                borderCurve: "continuous",
-                overflow: "hidden",
-                backgroundColor: colors.surfaceTinted,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              {entry.uri === null ? null : (
-                <Image
-                  source={{ uri: entry.uri }}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                  cachePolicy="disk"
-                />
-              )}
-            </View>
-          ))}
-        </View>
+        <LinkZoomTransitionSource identifier={zoomSourceId}>
+          <View
+            collapsable={false}
+            style={{
+              width: mosaic,
+              height: mosaic,
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: TILE_GAP,
+            }}
+          >
+            {tiles.map((entry) => (
+              <View
+                key={entry.slot}
+                style={{
+                  width: tile,
+                  height: tile,
+                  borderRadius: radius.sm,
+                  borderCurve: "continuous",
+                  overflow: "hidden",
+                  backgroundColor: colors.surfaceTinted,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {entry.uri === null ? null : (
+                  <Image
+                    source={{ uri: entry.uri }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                    cachePolicy="disk"
+                  />
+                )}
+              </View>
+            ))}
+          </View>
+        </LinkZoomTransitionSource>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
           <SymbolView name="folder.fill" tintColor={colors.inkMuted} size={13} />

@@ -5,6 +5,7 @@ import { AlbumsService } from "@backend/api/albums/albums.service";
 import { GroupsService } from "@backend/api/groups/groups.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import { Button, Text } from "@ui/components";
+import { albumHeaders } from "@ui/header/albumHeader";
 import { colors, radius, space } from "@ui/theme";
 
 export default function NameScreen() {
@@ -49,10 +50,20 @@ export default function NameScreen() {
       router.back();
       return;
     }
-    const album = await AlbumsService.create(trimmed);
+    const [album, groups] = await Promise.all([
+      AlbumsService.create(trimmed),
+      GroupsService.tree(),
+    ]);
     await WidgetService.sync();
+    albumHeaders.set(album.id, {
+      name: album.name,
+      groupId: album.groupId,
+      groups,
+      selectedCount: 0,
+      onlySelected: null,
+    });
     router.back();
-    router.push({ pathname: "/album/[id]", params: { id: album.id, name: album.name } });
+    router.push({ pathname: "/album/[id]", params: { id: album.id } });
   };
 
   const removeGroup = async () => {
