@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { ActivityIndicator, ScrollView, View, useWindowDimensions } from "react-native";
 import { AlbumsService } from "@backend/api/albums/albums.service";
 import { GroupsService, type GroupNode } from "@backend/api/groups/groups.service";
@@ -13,32 +13,59 @@ import { photoUri } from "@native/photoStore";
 import { ConfirmDialog, EmptyState, Text } from "@ui/components";
 import { photoCountLabel } from "@ui/format";
 import { ReorderableGrid } from "@ui/components/media/ReorderableGrid";
+import { useRenamedTitle } from "@ui/routeTitle";
 import { colors, radius, space } from "@ui/theme";
+import { useSettledState } from "@ui/useSettledState";
+
+function samePhotos(a: PhotoRow[], b: PhotoRow[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((photo, index) => {
+      const other = b[index];
+      return other !== undefined && photo.id === other.id && photo.fileName === other.fileName;
+    })
+  );
+}
+
+interface AlbumHeader {
+  name: string;
+  groupId: string | null;
+  groups: GroupNode[];
+}
+
+function sameAlbumHeader(a: AlbumHeader, b: AlbumHeader): boolean {
+  return a.name === b.name && a.groupId === b.groupId && GroupsService.sameTree(a.groups, b.groups);
+}
 
 export default function AlbumScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, name: routeName } = useLocalSearchParams<{ id: string; name?: string }>();
 
-  const [name, setName] = useState("");
+  const [header, commitHeader] = useSettledState<AlbumHeader>(
+    { name: routeName ?? "", groupId: null, groups: [] },
+    sameAlbumHeader
+  );
   const [photos, setPhotos] = useState<PhotoRow[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [groups, setGroups] = useState<GroupNode[]>([]);
-  const [groupId, setGroupId] = useState<string | null>(null);
+  const { name } = header;
+  useRenamedTitle(name, routeName);
 
   const reload = useCallback(async () => {
-    const album = await AlbumsService.byId(id);
+    const [album, tree, rows] = await Promise.all([
+      AlbumsService.byId(id),
+      GroupsService.tree(),
+      PhotosService.listByAlbum(id),
+    ]);
     if (album === null) {
       router.back();
       return;
     }
-    setName(album.name);
-    setGroupId(album.groupId);
-    setGroups(await GroupsService.tree());
-    setPhotos(await PhotosService.listByAlbum(id));
-  }, [id, router]);
+    commitHeader({ name: album.name, groupId: album.groupId, groups: tree });
+    setPhotos((current) => (samePhotos(current, rows) ? current : rows));
+  }, [id, router, commitHeader]);
 
   useFocusEffect(
     useCallback(() => {
@@ -89,11 +116,11 @@ export default function AlbumScreen() {
   const moveToGroup = useCallback(
     async (nextGroupId: string | null) => {
       await AlbumsService.setGroup(id, nextGroupId);
-      setGroupId(nextGroupId);
+      commitHeader({ ...header, groupId: nextGroupId });
       await WidgetService.sync();
       Haptics.selectionAsync();
     },
-    [id]
+    [id, header, commitHeader]
   );
 
   const applyOrder = useCallback(
@@ -113,6 +140,22 @@ export default function AlbumScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
   }, [id, router]);
+
+  const requestDelete = useCallback(async () => {
+    const rows = await PhotosService.listByAlbum(id);
+    if (rows.length === 0) {
+      await deleteAlbum();
+      return;
+    }
+    setConfirmingDelete(true);
+  }, [id, deleteAlbum]);
+
+  const deselect = useCallback(() => setSelected([]), []);
+
+  const rename = useCallback(
+    () => router.push({ pathname: "/name", params: { id } }),
+    [id, router]
+  );
 
   const columns = 3;
   const gutter = 6;
@@ -192,78 +235,20 @@ export default function AlbumScreen() {
         </View>
       ) : null}
 
-      <Stack.Screen.Title>{name}</Stack.Screen.Title>
-      <Stack.Toolbar placement="right">
-        {selecting ? (
-          <Stack.Toolbar.Button
-            icon="trash"
-            tintColor={colors.error}
-            accessibilityLabel="Delete selected photos"
-            onPress={() => void removeSelected()}
-          />
-        ) : (
-          <Stack.Toolbar.Button
-            icon="plus"
-            tintColor={colors.accent}
-            accessibilityLabel="Add photos"
-            onPress={() => void addPhotos()}
-          />
-        )}
-        <Stack.Toolbar.Menu
-          icon="ellipsis"
-          tintColor={colors.accent}
-          accessibilityLabel="Album options"
-        >
-          {onlySelected === null ? null : (
-            <Stack.Toolbar.MenuAction icon="star" onPress={() => void makeCover(onlySelected)}>
-              Use as cover
-            </Stack.Toolbar.MenuAction>
-          )}
-          {onlySelected === null ? null : (
-            <Stack.Toolbar.MenuAction
-              icon="arrow.up.to.line"
-              onPress={() => void moveToFront(onlySelected)}
-            >
-              Show first
-            </Stack.Toolbar.MenuAction>
-          )}
-          {selecting ? (
-            <Stack.Toolbar.MenuAction icon="xmark.circle" onPress={() => setSelected([])}>
-              Deselect
-            </Stack.Toolbar.MenuAction>
-          ) : null}
-          <Stack.Toolbar.MenuAction
-            icon="pencil"
-            onPress={() => router.push({ pathname: "/name", params: { id } })}
-          >
-            Rename
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.Menu icon="folder" title="Move to folder">
-            <Stack.Toolbar.MenuAction
-              icon={groupId === null ? "checkmark" : "tray"}
-              onPress={() => void moveToGroup(null)}
-            >
-              No folder
-            </Stack.Toolbar.MenuAction>
-            {groups.map((group) => (
-              <Stack.Toolbar.MenuAction
-                key={group.id}
-                icon={groupId === group.id ? "checkmark" : "folder"}
-                onPress={() => void moveToGroup(group.id)}
-              >
-                {group.path}
-              </Stack.Toolbar.MenuAction>
-            ))}
-          </Stack.Toolbar.Menu>
-          <Stack.Toolbar.MenuAction
-            icon="trash"
-            destructive
-            onPress={() => (photos.length === 0 ? void deleteAlbum() : setConfirmingDelete(true))}
-          >
-            Delete album
-          </Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+      <AlbumToolbar
+        selecting={selecting}
+        onlySelected={onlySelected}
+        groupId={header.groupId}
+        groups={header.groups}
+        onAdd={addPhotos}
+        onRemoveSelected={removeSelected}
+        onMakeCover={makeCover}
+        onMoveToFront={moveToFront}
+        onDeselect={deselect}
+        onRename={rename}
+        onMove={moveToGroup}
+        onDelete={requestDelete}
+      />
 
       <ConfirmDialog
         visible={confirmingDelete}
@@ -276,6 +261,103 @@ export default function AlbumScreen() {
     </>
   );
 }
+
+interface AlbumToolbarProps {
+  selecting: boolean;
+  onlySelected: string | null;
+  groupId: string | null;
+  groups: GroupNode[];
+  onAdd: () => Promise<void>;
+  onRemoveSelected: () => Promise<void>;
+  onMakeCover: (photoId: string) => Promise<void>;
+  onMoveToFront: (photoId: string) => Promise<void>;
+  onDeselect: () => void;
+  onRename: () => void;
+  onMove: (groupId: string | null) => Promise<void>;
+  onDelete: () => Promise<void>;
+}
+
+const AlbumToolbar = memo(function AlbumToolbar({
+  selecting,
+  onlySelected,
+  groupId,
+  groups,
+  onAdd,
+  onRemoveSelected,
+  onMakeCover,
+  onMoveToFront,
+  onDeselect,
+  onRename,
+  onMove,
+  onDelete,
+}: AlbumToolbarProps) {
+  return (
+    <Stack.Toolbar placement="right">
+      {selecting ? (
+        <Stack.Toolbar.Button
+          icon="trash"
+          tintColor={colors.error}
+          accessibilityLabel="Delete selected photos"
+          onPress={() => void onRemoveSelected()}
+        />
+      ) : (
+        <Stack.Toolbar.Button
+          icon="plus"
+          tintColor={colors.accent}
+          accessibilityLabel="Add photos"
+          onPress={() => void onAdd()}
+        />
+      )}
+      <Stack.Toolbar.Menu
+        icon="ellipsis"
+        tintColor={colors.accent}
+        accessibilityLabel="Album options"
+      >
+        {onlySelected === null ? null : (
+          <Stack.Toolbar.MenuAction icon="star" onPress={() => void onMakeCover(onlySelected)}>
+            Use as cover
+          </Stack.Toolbar.MenuAction>
+        )}
+        {onlySelected === null ? null : (
+          <Stack.Toolbar.MenuAction
+            icon="arrow.up.to.line"
+            onPress={() => void onMoveToFront(onlySelected)}
+          >
+            Show first
+          </Stack.Toolbar.MenuAction>
+        )}
+        {selecting ? (
+          <Stack.Toolbar.MenuAction icon="xmark.circle" onPress={onDeselect}>
+            Deselect
+          </Stack.Toolbar.MenuAction>
+        ) : null}
+        <Stack.Toolbar.MenuAction icon="pencil" onPress={onRename}>
+          Rename
+        </Stack.Toolbar.MenuAction>
+        <Stack.Toolbar.Menu icon="folder" title="Move to folder">
+          <Stack.Toolbar.MenuAction
+            icon={groupId === null ? "checkmark" : "tray"}
+            onPress={() => void onMove(null)}
+          >
+            No folder
+          </Stack.Toolbar.MenuAction>
+          {groups.map((group) => (
+            <Stack.Toolbar.MenuAction
+              key={group.id}
+              icon={groupId === group.id ? "checkmark" : "folder"}
+              onPress={() => void onMove(group.id)}
+            >
+              {group.path}
+            </Stack.Toolbar.MenuAction>
+          ))}
+        </Stack.Toolbar.Menu>
+        <Stack.Toolbar.MenuAction icon="trash" destructive onPress={() => void onDelete()}>
+          Delete album
+        </Stack.Toolbar.MenuAction>
+      </Stack.Toolbar.Menu>
+    </Stack.Toolbar>
+  );
+});
 
 function PhotoCell({
   photo,

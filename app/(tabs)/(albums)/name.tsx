@@ -52,7 +52,7 @@ export default function NameScreen() {
     const album = await AlbumsService.create(trimmed);
     await WidgetService.sync();
     router.back();
-    router.push(`/album/${album.id}`);
+    router.push({ pathname: "/album/[id]", params: { id: album.id, name: album.name } });
   };
 
   const removeGroup = async () => {

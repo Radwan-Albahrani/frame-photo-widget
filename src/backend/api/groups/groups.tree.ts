@@ -85,3 +85,10 @@ export function browseFrom(
     subtrees,
   };
 }
+
+export function sameTree(a: GroupNode[], b: GroupNode[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((node, index) => node.id === b[index]?.id && node.path === b[index]?.path)
+  );
+}

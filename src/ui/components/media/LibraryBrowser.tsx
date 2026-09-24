@@ -200,21 +200,24 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
     [moveItems, deleteAlbum, router]
   );
 
+  const openFolder = (group: GroupWithCounts) =>
+    router.push({ pathname: "/group/[id]", params: { id: group.id, name: group.name } });
+
   const cardSize = (width - space.lg * (COLUMNS + 1)) / COLUMNS;
   const isEmpty = groups.length === 0 && albums.length === 0;
 
   const ownedIds = [...groups.map((group) => group.id), ...albums.map((album) => album.id)];
 
   return (
-    <DropZone
-      ownedIds={ownedIds}
-      onDrop={(items) => void moveItems(items, groupId)}
+    <ScrollView
       style={{ flex: 1 }}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={{ flexGrow: 1 }}
     >
-      <ScrollView
-        style={{ flex: 1 }}
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl * 3 }}
+      <DropZone
+        ownedIds={ownedIds}
+        onDrop={(items) => void moveItems(items, groupId)}
+        style={{ flexGrow: 1, padding: space.lg, paddingBottom: space.xxxl * 3 }}
       >
         {isEmpty ? (
           <View style={{ paddingTop: space.xxxl * 2 }}>
@@ -254,7 +257,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
                   key={group.id}
                   actions={cardActions(targets, "Delete folder")}
                   onPressAction={(event) => onGroupAction(group, event)}
-                  onPress={() => router.push(`/group/${group.id}`)}
+                  onPress={() => openFolder(group)}
                   title={group.name}
                   accessibilityLabel={`${group.name}, ${groupCountLabel(
                     group.albumCount,
@@ -265,7 +268,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
                   drop={{
                     accepts: FOLDER_ACCEPTS,
                     onDrop: (items) => void moveItems(items, group.id),
-                    onSpringLoad: () => router.push(`/group/${group.id}`),
+                    onSpringLoad: () => openFolder(group),
                   }}
                 >
                   <GroupCard
@@ -283,7 +286,12 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
                 <HoldMenu
                   actions={cardActions(moveSubactions(folders, album.groupId), "Delete album")}
                   onPressAction={(event) => onAlbumAction(album, event)}
-                  onPress={() => router.push(`/album/${album.id}`)}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/album/[id]",
+                      params: { id: album.id, name: album.name },
+                    })
+                  }
                   title={album.name}
                   accessibilityLabel={`${album.name}, ${photoCountLabel(album.photoCount)}`}
                   accessibilityHint="Touch and hold for album actions, or drag it onto a folder or album"
@@ -315,7 +323,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
             ))}
           </View>
         )}
-      </ScrollView>
-    </DropZone>
+      </DropZone>
+    </ScrollView>
   );
 }

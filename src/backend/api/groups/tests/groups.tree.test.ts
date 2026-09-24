@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { browseFrom, childrenOf, collectSubtree, toTree } from "@backend/api/groups/groups.tree";
+import {
+  browseFrom,
+  childrenOf,
+  collectSubtree,
+  sameTree,
+  toTree,
+} from "@backend/api/groups/groups.tree";
 import type { AlbumGroupRow } from "@backend/core/db/schema";
 
 function group(id: string, name: string, parentId: string | null, order = 0): AlbumGroupRow {
@@ -74,5 +80,22 @@ describe("collectSubtree", () => {
     const cycle = [group("a", "A", "b"), group("b", "B", "a")];
 
     expect(collectSubtree("a", childrenOf(cycle))).toEqual(["a", "b"]);
+  });
+});
+
+describe("sameTree", () => {
+  const tree = toTree(nested, childrenOf(nested));
+
+  it("treats a freshly read identical tree as the same", () => {
+    expect(sameTree(tree, toTree([...nested], childrenOf([...nested])))).toBe(true);
+  });
+
+  it("sees a rename, because the visible path changes", () => {
+    const renamed = [group("travel", "Trips", null), japan, kyoto, food];
+    expect(sameTree(tree, toTree(renamed, childrenOf(renamed)))).toBe(false);
+  });
+
+  it("sees a folder added or removed", () => {
+    expect(sameTree(tree, tree.slice(1))).toBe(false);
   });
 });

@@ -3,6 +3,7 @@ import {
   browseFrom,
   childrenOf,
   collectSubtree,
+  sameTree,
   toTree,
   type GroupBrowse,
   type GroupNode,
@@ -19,6 +20,10 @@ export type {
 } from "@backend/api/groups/groups.tree";
 
 export class GroupsService {
+  static sameTree(a: GroupNode[], b: GroupNode[]): boolean {
+    return sameTree(a, b);
+  }
+
   static async all(): Promise<AlbumGroupRow[]> {
     return db
       .select()
