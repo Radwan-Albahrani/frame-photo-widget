@@ -257,12 +257,16 @@ public final class FramePhotoStoreModule: Module {
       return (try? containerURL())?.path
     }
 
-    Function("setSnapshot") { (key: String, json: String) -> Void in
-      UserDefaults(suiteName: appGroup)?.set(json, forKey: key)
+    Function("setSharedValue") { (key: String, value: String) -> Void in
+      UserDefaults(suiteName: appGroup)?.set(value, forKey: key)
     }
 
-    Function("getSnapshot") { (key: String) -> String? in
+    Function("getSharedValue") { (key: String) -> String? in
       return UserDefaults(suiteName: appGroup)?.string(forKey: key)
+    }
+
+    Function("removeSharedValue") { (key: String) -> Void in
+      UserDefaults(suiteName: appGroup)?.removeObject(forKey: key)
     }
 
     Function("reloadWidgets") { () -> Void in

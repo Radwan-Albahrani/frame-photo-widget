@@ -37,12 +37,16 @@ export function containerPath(): string | null {
   return native?.containerPath() ?? null;
 }
 
-export function setSnapshot(key: string, json: string): void {
-  native?.setSnapshot(key, json);
+export function setSharedValue(key: string, value: string): void {
+  native?.setSharedValue(key, value);
 }
 
-export function getSnapshot(key: string): string | null {
-  return native?.getSnapshot(key) ?? null;
+export function getSharedValue(key: string): string | null {
+  return native?.getSharedValue(key) ?? null;
+}
+
+export function removeSharedValue(key: string): void {
+  native?.removeSharedValue(key);
 }
 
 export function reloadWidgets(): void {

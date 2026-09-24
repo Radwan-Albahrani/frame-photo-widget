@@ -5,8 +5,6 @@ import { settings } from "@backend/core/db/schema";
 
 export type PhotoFit = "fill" | "fit";
 
-export type WidgetSource = "snapshot" | "sqlite";
-
 export type PretickMode = "off" | "album" | "frame";
 
 export interface AppSettings {
@@ -14,7 +12,6 @@ export interface AppSettings {
   showAlbumTitle: boolean;
   showDate: boolean;
   fit: PhotoFit;
-  widgetSource: WidgetSource;
   pretick: PretickMode;
 }
 
@@ -23,7 +20,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showAlbumTitle: false,
   showDate: false,
   fit: "fill",
-  widgetSource: "snapshot",
   pretick: "album",
 };
 

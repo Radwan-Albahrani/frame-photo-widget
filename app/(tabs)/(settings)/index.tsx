@@ -18,7 +18,6 @@ import {
   type AppSettings,
   type PhotoFit,
   type PretickMode,
-  type WidgetSource,
 } from "@backend/api/settings/settings.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import { DuplicatesService } from "@backend/api/duplicates/duplicates.service";
@@ -47,11 +46,6 @@ const PRETICK_FOOTER: Record<PretickMode, string> = {
     "Photos already in the album you are adding to show up ticked, so you can see what you are missing. A photo can still be added to a second album.",
   frame:
     "Every photo anywhere in Frame shows up ticked, so you can see what you have never added. A photo already in one album cannot be added to another this way.",
-};
-
-const SOURCE_FOOTER: Record<WidgetSource, string> = {
-  snapshot: "The widget reads a small mirrored snapshot. Most robust.",
-  sqlite: "The widget opens the shared database directly. One source of truth.",
 };
 
 export default function SettingsScreen() {
@@ -252,21 +246,6 @@ export default function SettingsScreen() {
           <LabeledContent label="Photo copies">
             <NativeText>{formatBytes(bytes)}</NativeText>
           </LabeledContent>
-        </Section>
-
-        <Section
-          title="Widget data source"
-          footer={<NativeText>{SOURCE_FOOTER[settings.widgetSource]}</NativeText>}
-        >
-          <Picker
-            label="Read photos from"
-            selection={settings.widgetSource}
-            onSelectionChange={(value: WidgetSource) => update({ widgetSource: value })}
-            modifiers={[pickerStyle("segmented")]}
-          >
-            <NativeText modifiers={[tag("snapshot")]}>Snapshot</NativeText>
-            <NativeText modifiers={[tag("sqlite")]}>SQLite</NativeText>
-          </Picker>
         </Section>
 
         <Section

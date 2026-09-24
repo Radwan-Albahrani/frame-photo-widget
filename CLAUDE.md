@@ -46,7 +46,7 @@ The things that will cost you a day if you rediscover them:
   render through `PhotoLoader`, which downsamples with ImageIO (`CGImageSourceCreateThumbnailAtIndex`)
   and never decodes the full original.
 - **Widgets cannot run JS and cannot read the app sandbox.** Everything they need lives in the App
-  Group: downsampled JPEGs under `photos/`, the SQLite file, and the mirrored JSON snapshot.
+  Group: downsampled JPEGs under `photos/` and the SQLite file, which the widget reads directly.
 - **`.widgetAccentedRenderingMode(.fullColor)`** after `.resizable()`, or the Home Screen's tinted
   mode renders photos as a flat silhouette.
 - **Reload budget is 40–70 per day**, not per minute. Rotation is done by building MANY timeline

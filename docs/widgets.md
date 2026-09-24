@@ -52,12 +52,12 @@ A widget cannot run JavaScript and cannot read the app's sandbox. Everything it 
 |---|---|---|
 | Downsampled JPEGs | `<container>/photos/<photoId>.jpg` | `FramePhotoStoreModule.savePhoto` |
 | SQLite database | `<container>/frame.db` | op-sqlite, via the `OPSQLite_AppGroup` Info.plist key |
-| JSON snapshot + settings | App Group `UserDefaults` | `WidgetService.sync` |
+| Widget settings + status | App Group `UserDefaults` | `WidgetService.sync` / the widget |
 
 **op-sqlite picks its directory from `OPSQLite_AppGroup` in the app's Info.plist.** Set that key and
 the database is created inside the App Group container instead of the sandbox, which is what lets
 the widget open it at all. Without the key op-sqlite silently falls back to `NSLibraryDirectory` and
-the widget's SQLite source returns nothing.
+the widget reads nothing.
 
 ## Never build the simulator app with `CODE_SIGNING_ALLOWED=NO`
 
@@ -80,39 +80,43 @@ The container is nil whenever the app group entitlement is not embedded in the b
 nothing is the tell. Simulator builds ad-hoc sign and carry entitlements perfectly well, so just
 build without that flag.
 
-## Two data sources, deliberately
+## The widget reads the database directly, and only what it shows
 
-`FrameStore.albums()` dispatches on the `widgetSource` key so both approaches ship and can be
-compared on a real device (Settings → Widget data source):
-
-- **`snapshot`** — reads a small JSON blob from App Group `UserDefaults`. The widget never opens a
-  database. Cheapest and most robust; a schema change cannot break the widget.
-- **`sqlite`** — opens `frame.db` read-only through the SQLite C API and joins albums to photos.
-  One source of truth, no mirroring step, but the extension now carries a schema assumption.
+`LibraryDatabase` (FrameWidgets.swift) opens `frame.db` read-only and asks for exactly one
+timeline's worth: the chosen album's file names, or the file names of every album in a folder's
+branch, through the `photos (album_id, sort_order)` and `albums (group_id)` indexes. The album and
+folder pickers read a summary (id, name, folder, photo COUNT), never file names. There is no mirror,
+no sync step, and no setting: this is the only data path.
 
 `import SQLite3` needs no extra linking: the iOS SDK modulemap carries `link "sqlite3"`, so it
-autolinks into the extension.
+autolinks into the extension. A read-only connection works against the app's WAL database with or
+without the app running.
 
-### Both were measured on device, and it is a tie (2026-09-21, iPhone 17 / iOS 27)
+### Why not a mirrored JSON snapshot (benchmarked 2026-09-24)
 
-One album, six photos, app terminated, same placed widget:
+Until 1.0.1 the app also mirrored the library into a JSON blob in App Group `UserDefaults`, with a
+Settings toggle to switch sources. A tiny-library test (1 album, 6 photos) called it a tie, so both
+shipped. At real sizes it is not close. Both old readers loaded the WHOLE library to show one album;
+a snapshot has no choice, because JSON is decoded whole.
 
-| Source | phys_footprint | peak | timeline build |
-|---|---|---|---|
-| `sqlite` | 16 MB | 19 MB | ~603 ms |
-| `snapshot` | 16 MB | 19 MB | ~621 ms |
+Method: the real migrations built `frame.db` and the real `toSnapshot()` built the JSON from the
+same rows; the widget's exact reader code ran in the iOS 27 simulator runtime (`simctl spawn`), one
+fresh process per case, median of 3. Peak is the process's `ledger_phys_footprint_peak`; the
+extension is killed at 30 MB.
 
-**The data read is not what costs anything — image decoding is.** 19 MB peak against the 30 MB
-limit is the number that matters, and it is identical either way, so pick on robustness:
+| Library | Shown | Snapshot | Old SQLite (read all) | `LibraryDatabase` |
+|---|---|---|---|---|
+| 1k photos | album | 2.3 ms · 4.0 MB | 2.0 ms · 4.0 MB | 1.8 ms · 3.8 MB |
+| 25k | album | 6.3 ms · 8.1 MB | 12.5 ms · 7.4 MB | 1.6 ms · 3.9 MB |
+| 200k | album | 33 ms · **38 MB (killed)** | 94 ms · 22 MB | 1.8 ms · 4.0 MB |
+| 200k | folder, 54k photos | 97 ms · **55 MB (killed)** | 97 ms · 22 MB | 15 ms · 9.9 MB |
+| 500k | album | 83 ms · **90 MB (killed)** | 237 ms · **47 MB (killed)** | 2.8 ms · 3.9 MB |
+| 500k | folder, 100k photos | 228 ms · **131 MB (killed)** | 240 ms · **47 MB (killed)** | 27 ms · 14 MB |
 
-- **`snapshot` is the default**, because a schema change cannot break the widget, there is no SQLite
-  reader to maintain in the extension, and there is no WAL/locking failure mode. Its one cost is
-  that the app must run `WidgetService.sync()` for the widget to see new data, which it does on
-  every launch and after every mutation.
-- **`sqlite`** is kept because it is genuinely simpler conceptually (one source of truth, nothing to
-  mirror) and is the right answer if the snapshot ever grows too large for `UserDefaults`.
-
-Keep both working. The setting that switches them is in Settings → Widget data source.
+The snapshot was also 4.6 MB at 200k photos, over App Group `UserDefaults`' 4 MB per-value limit.
+`LibraryDatabase` returned byte-identical photo sequences to the snapshot reader in all ten cases.
+`WidgetService.sync` deletes the retired `albums` and `widgetSource` keys, because `UserDefaults`
+loads the whole store into the widget process when it reads its settings.
 
 ## Groups, and how the picker narrows
 
@@ -134,8 +138,8 @@ The widget's configuration has two entity parameters:
 2. otherwise the whole group, flattened into one rotating set across all its albums;
 3. otherwise the first album.
 
-Both data sources carry groups: the snapshot JSON gained a `groups` array and a `groupId` per album,
-and the SQLite source reads `album_groups` plus `albums.group_id`.
+Groups come from `album_groups` plus `albums.group_id`; a folder's branch is walked in memory from
+the (small) groups table, then its photos are read in one indexed query.
 
 ## Configuration: per-widget album choice
 

@@ -31,8 +31,9 @@ interface FramePhotoStoreModule {
   hashPhotos(fileNames: string[]): Promise<Record<string, string>>;
   photoUri(fileName: string): string | null;
   containerPath(): string | null;
-  setSnapshot(key: string, json: string): void;
-  getSnapshot(key: string): string | null;
+  setSharedValue(key: string, value: string): void;
+  getSharedValue(key: string): string | null;
+  removeSharedValue(key: string): void;
   reloadWidgets(): void;
   placedWidgetCount(): Promise<number>;
   pickPhotos(
