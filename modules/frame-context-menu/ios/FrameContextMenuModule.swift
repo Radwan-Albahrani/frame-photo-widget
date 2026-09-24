@@ -442,7 +442,17 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     session: UIDragSession,
     didEndWith operation: UIDropOperation
   ) {
-    FrameDragSession.end(moved: operation == .move)
+    FrameDragSession.end()
+  }
+
+  // While a drag is in flight, a tap on this card belongs to the drag (a second finger adds the card to
+  // the stack), so touches stop here instead of reaching the RN children. RN resolves presses from the
+  // hit view up through its ancestors, never down, so the card's own tap handler cannot fire.
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard FrameDragSession.isActive else {
+      return super.hitTest(point, with: event)
+    }
+    return self.point(inside: point, with: event) && !isHidden ? self : nil
   }
 
   override func didMoveToWindow() {
@@ -501,6 +511,7 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
 
   func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
     setDropHighlight(false)
+    FrameDragSession.markDropped()
     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     onDropItems(["items": FrameDragPayload.all(session).map { $0.event }])
   }

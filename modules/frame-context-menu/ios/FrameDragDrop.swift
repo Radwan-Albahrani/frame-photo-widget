@@ -32,6 +32,7 @@ final class FrameDragPayload: NSObject {
 /// session, so spring-loaded targets read the dragged ids from here.
 enum FrameDragSession {
   private static var sources: [String: WeakCard] = [:]
+  private static var didDrop = false
 
   static var ids: Set<String> {
     return Set(sources.keys)
@@ -52,14 +53,21 @@ enum FrameDragSession {
     card.isInDrag = false
   }
 
+  static func markDropped() {
+    didDrop = true
+  }
+
   /// A card that moved stays hidden until the reload removes it, so it never flashes back in place.
-  static func end(moved: Bool) {
+  /// Both the originating card and every drop zone the drag crossed report the end, because the
+  /// originating card is gone if its screen was popped mid-drag; the second report finds nothing to do.
+  static func end() {
     for source in sources.values {
       guard let card = source.card else { continue }
-      card.wasDropped = moved
+      card.wasDropped = didDrop
       card.isInDrag = false
     }
     sources = [:]
+    didDrop = false
   }
 
   private final class WeakCard {
@@ -231,7 +239,12 @@ final class FrameDropZoneView: ExpoView, UIDropInteractionDelegate {
   }
 
   func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
+    FrameDragSession.markDropped()
     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     onDropItems(["items": FrameDragPayload.all(session).map { $0.event }])
+  }
+
+  func dropInteraction(_ interaction: UIDropInteraction, sessionDidEnd session: UIDropSession) {
+    FrameDragSession.end()
   }
 }
