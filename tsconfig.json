@@ -10,7 +10,8 @@
       "@ui/*": ["./src/ui/*"],
       "@const/*": ["./src/const/*"],
       "@i18n": ["./src/i18n"],
-      "@i18n/*": ["./src/i18n/*"]
+      "@i18n/*": ["./src/i18n/*"],
+      "@react-navigation/core": ["./node_modules/expo-router/build/react-navigation/core"]
     },
     "types": ["node", "bun-types"]
   },

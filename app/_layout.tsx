@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import { migrate } from "@backend/core/db/client";
 import { bestEffort } from "@backend/core/log/logger";
+import { DevTools } from "@ui/devtools/DevTools";
 import { colors } from "@ui/theme";
 
 const NAV_THEME = {
@@ -26,6 +27,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.surface }}>
+      <DevTools />
       <StatusBar style="light" />
       <ThemeProvider value={NAV_THEME}>
         <Stack
