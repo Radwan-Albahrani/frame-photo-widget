@@ -1,4 +1,5 @@
-import { Button, ConfirmationDialog, Host, Text } from "@expo/ui/swift-ui";
+import { Button, ConfirmationDialog, Host, Spacer, Text } from "@expo/ui/swift-ui";
+import { StyleSheet } from "react-native";
 
 const DESTRUCTIVE = "destructive" as const;
 const CANCEL = "cancel" as const;
@@ -21,8 +22,11 @@ export function ConfirmDialog({
   onConfirm,
 }: ConfirmDialogProps) {
   return (
-    <Host style={{ position: "absolute", width: 0, height: 0 }}>
+    <Host style={StyleSheet.absoluteFill} pointerEvents="none">
       <ConfirmationDialog title={title} isPresented={visible} onIsPresentedChange={onVisibleChange}>
+        <ConfirmationDialog.Trigger>
+          <Spacer />
+        </ConfirmationDialog.Trigger>
         <ConfirmationDialog.Actions>
           <Button role={DESTRUCTIVE} label={confirmLabel} onPress={onConfirm} />
           <Button role={CANCEL} label="Cancel" />

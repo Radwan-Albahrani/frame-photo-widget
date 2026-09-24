@@ -29,12 +29,6 @@ interface LibraryBrowserProps {
   groupId: string | null;
 }
 
-interface PendingDelete {
-  kind: "group" | "album";
-  id: string;
-  name: string;
-}
-
 function moveSubactions(folders: GroupNode[], currentId: string | null): MenuAction[] {
   return [
     {
@@ -68,7 +62,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
   const [covers, setCovers] = useState<Record<string, (string | null)[]>>({});
   const [folders, setFolders] = useState<GroupNode[]>([]);
   const [subtrees, setSubtrees] = useState<Record<string, string[]>>({});
-  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const reload = useCallback(async () => {
@@ -126,19 +120,39 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
     [reload]
   );
 
-  const confirmDelete = useCallback(async () => {
-    if (pendingDelete === null) return;
-    if (pendingDelete.kind === "group") {
-      await GroupsService.remove(pendingDelete.id);
-    } else {
-      await PhotosService.removeAlbumPhotos(pendingDelete.id);
-      await AlbumsService.remove(pendingDelete.id);
-    }
-    await WidgetService.sync();
-    setConfirmingDelete(false);
-    setPendingDelete(null);
-    await reload();
-  }, [pendingDelete, reload]);
+  const dropInto = useCallback(
+    (targetGroupId: string, draggedId: string) => {
+      const album = albums.find((item) => item.id === draggedId);
+      if (album !== undefined) {
+        void moveAlbum(album, targetGroupId);
+        return;
+      }
+      const group = groups.find((item) => item.id === draggedId);
+      if (group !== undefined) void moveGroup(group, targetGroupId);
+    },
+    [albums, groups, moveAlbum, moveGroup]
+  );
+
+  const deleteGroup = useCallback(
+    async (group: GroupWithCounts) => {
+      await GroupsService.remove(group.id);
+      await WidgetService.sync();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await reload();
+    },
+    [reload]
+  );
+
+  const deleteAlbum = useCallback(
+    async (album: AlbumWithCount) => {
+      await PhotosService.removeAlbumPhotos(album.id);
+      await AlbumsService.remove(album.id);
+      await WidgetService.sync();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await reload();
+    },
+    [reload]
+  );
 
   const onGroupAction = useCallback(
     (group: GroupWithCounts, event: NativeActionEvent) => {
@@ -153,11 +167,10 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
         return;
       }
       if (action === DELETE) {
-        setPendingDelete({ kind: "group", id: group.id, name: group.name });
-        setConfirmingDelete(true);
+        void deleteGroup(group);
       }
     },
-    [moveGroup, router]
+    [moveGroup, deleteGroup, router]
   );
 
   const onAlbumAction = useCallback(
@@ -173,11 +186,15 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
         return;
       }
       if (action === DELETE) {
-        setPendingDelete({ kind: "album", id: album.id, name: album.name });
+        if (album.photoCount === 0) {
+          void deleteAlbum(album);
+          return;
+        }
+        setDeleteTargetId(album.id);
         setConfirmingDelete(true);
       }
     },
-    [moveAlbum, router]
+    [moveAlbum, deleteAlbum, router]
   );
 
   const cardSize = (width - space.lg * (COLUMNS + 1)) / COLUMNS;
@@ -233,7 +250,10 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
                   group.albumCount,
                   group.childGroupCount
                 )}`}
-                accessibilityHint="Touch and hold for folder actions"
+                accessibilityHint="Touch and hold for folder actions, or drag an album onto it"
+                dragItemId={group.id}
+                dropTargetId={group.id}
+                onDropItem={(draggedId) => dropInto(group.id, draggedId)}
               >
                 <GroupCard
                   name={group.name}
@@ -246,39 +266,38 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
             );
           })}
           {albums.map((album) => (
-            <HoldMenu
-              key={album.id}
-              actions={cardActions(moveSubactions(folders, album.groupId), "Delete album")}
-              onPressAction={(event) => onAlbumAction(album, event)}
-              onPress={() => router.push(`/album/${album.id}`)}
-              title={album.name}
-              accessibilityLabel={`${album.name}, ${photoCountLabel(album.photoCount)}`}
-              accessibilityHint="Touch and hold for album actions"
-            >
-              <AlbumCard
-                name={album.name}
-                photoCount={album.photoCount}
-                coverUri={album.coverFileName === null ? null : photoUri(album.coverFileName)}
-                size={cardSize}
-                recyclingKey={album.id}
-              />
-            </HoldMenu>
+            <View key={album.id}>
+              <HoldMenu
+                actions={cardActions(moveSubactions(folders, album.groupId), "Delete album")}
+                onPressAction={(event) => onAlbumAction(album, event)}
+                onPress={() => router.push(`/album/${album.id}`)}
+                title={album.name}
+                accessibilityLabel={`${album.name}, ${photoCountLabel(album.photoCount)}`}
+                accessibilityHint="Touch and hold for album actions, or drag it onto a folder"
+                dragItemId={album.id}
+              >
+                <AlbumCard
+                  name={album.name}
+                  photoCount={album.photoCount}
+                  coverUri={album.coverFileName === null ? null : photoUri(album.coverFileName)}
+                  size={cardSize}
+                  recyclingKey={album.id}
+                />
+              </HoldMenu>
+              {deleteTargetId === album.id ? (
+                <ConfirmDialog
+                  visible={confirmingDelete}
+                  title={`Delete "${album.name}"?`}
+                  message={`${photoCountLabel(album.photoCount)} will be removed from Frame. Your originals in Photos are untouched.`}
+                  confirmLabel="Delete album"
+                  onVisibleChange={setConfirmingDelete}
+                  onConfirm={() => void deleteAlbum(album)}
+                />
+              ) : null}
+            </View>
           ))}
         </View>
       )}
-
-      <ConfirmDialog
-        visible={confirmingDelete}
-        title={pendingDelete === null ? "" : `Delete "${pendingDelete.name}"?`}
-        message={
-          pendingDelete?.kind === "group"
-            ? "Only the folder is removed. Everything inside it moves up one level, and no photos are deleted."
-            : "The album and its copies are removed. Your originals in Photos are untouched."
-        }
-        confirmLabel={pendingDelete?.kind === "group" ? "Delete folder" : "Delete"}
-        onVisibleChange={setConfirmingDelete}
-        onConfirm={() => void confirmDelete()}
-      />
     </ScrollView>
   );
 }

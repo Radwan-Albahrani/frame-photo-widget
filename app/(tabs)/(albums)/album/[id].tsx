@@ -11,6 +11,7 @@ import { WidgetService } from "@backend/api/widget/widget.service";
 import type { PhotoRow } from "@backend/core/db/schema";
 import { photoUri } from "@native/photoStore";
 import { ConfirmDialog, EmptyState, Text } from "@ui/components";
+import { photoCountLabel } from "@ui/format";
 import { ReorderableGrid } from "@ui/components/media/ReorderableGrid";
 import { colors, radius, space } from "@ui/theme";
 
@@ -109,6 +110,7 @@ export default function AlbumScreen() {
     await PhotosService.removeAlbumPhotos(id);
     await AlbumsService.remove(id);
     await WidgetService.sync();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
   }, [id, router]);
 
@@ -256,7 +258,7 @@ export default function AlbumScreen() {
           <Stack.Toolbar.MenuAction
             icon="trash"
             destructive
-            onPress={() => setConfirmingDelete(true)}
+            onPress={() => (photos.length === 0 ? void deleteAlbum() : setConfirmingDelete(true))}
           >
             Delete album
           </Stack.Toolbar.MenuAction>
@@ -266,8 +268,8 @@ export default function AlbumScreen() {
       <ConfirmDialog
         visible={confirmingDelete}
         title={`Delete "${name}"?`}
-        message="The album and its copies are removed. Your originals in Photos are untouched."
-        confirmLabel="Delete"
+        message={`${photoCountLabel(photos.length)} will be removed from Frame. Your originals in Photos are untouched.`}
+        confirmLabel="Delete album"
         onVisibleChange={setConfirmingDelete}
         onConfirm={() => void deleteAlbum()}
       />

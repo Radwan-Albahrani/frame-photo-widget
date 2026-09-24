@@ -4,7 +4,7 @@ import { TextInput, View } from "react-native";
 import { AlbumsService } from "@backend/api/albums/albums.service";
 import { GroupsService } from "@backend/api/groups/groups.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
-import { Button, ConfirmDialog, Text } from "@ui/components";
+import { Button, Text } from "@ui/components";
 import { colors, radius, space } from "@ui/theme";
 
 export default function NameScreen() {
@@ -18,7 +18,6 @@ export default function NameScreen() {
   const isGroup = kind === "group";
   const editing = typeof id === "string" && id.length > 0;
   const [value, setValue] = useState("");
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (!editing) return;
@@ -56,6 +55,13 @@ export default function NameScreen() {
     router.push(`/album/${album.id}`);
   };
 
+  const removeGroup = async () => {
+    if (!editing) return;
+    await GroupsService.remove(id);
+    await WidgetService.sync();
+    router.back();
+  };
+
   const title = isGroup
     ? editing
       ? "Rename group"
@@ -90,7 +96,7 @@ export default function NameScreen() {
           label="Delete group"
           variant="destructive"
           icon="trash"
-          onPress={() => setConfirmingDelete(true)}
+          onPress={() => void removeGroup()}
         />
       ) : null}
 
@@ -108,21 +114,6 @@ export default function NameScreen() {
           style={{ flex: 1 }}
         />
       </View>
-      <ConfirmDialog
-        visible={confirmingDelete}
-        title={`Delete "${trimmed}"?`}
-        message="The group is removed. Its albums and photos are kept and simply stop being grouped."
-        confirmLabel="Delete group"
-        onVisibleChange={setConfirmingDelete}
-        onConfirm={() => {
-          void (async () => {
-            if (editing) await GroupsService.remove(id);
-            await WidgetService.sync();
-            setConfirmingDelete(false);
-            router.back();
-          })();
-        }}
-      />
     </View>
   );
 }

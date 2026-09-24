@@ -4,7 +4,6 @@ import { useCallback, useState } from "react";
 import { GroupsService, type GroupNode } from "@backend/api/groups/groups.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import { reportFailure } from "@backend/core/log/logger";
-import { ConfirmDialog } from "@ui/components";
 import { LibraryBrowser } from "@ui/components/media/LibraryBrowser";
 import { colors } from "@ui/theme";
 
@@ -14,7 +13,6 @@ export default function GroupScreen() {
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState<string | null>(null);
   const [targets, setTargets] = useState<GroupNode[]>([]);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const load = useCallback(async () => {
     const group = await GroupsService.byId(id);
@@ -55,7 +53,7 @@ export default function GroupScreen() {
   const remove = useCallback(async () => {
     await GroupsService.remove(id);
     await WidgetService.sync();
-    setConfirmingDelete(false);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
   }, [id, router]);
 
@@ -115,23 +113,11 @@ export default function GroupScreen() {
           >
             Rename
           </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon="trash"
-            destructive
-            onPress={() => setConfirmingDelete(true)}
-          >
+          <Stack.Toolbar.MenuAction icon="trash" destructive onPress={() => void remove()}>
             Delete folder
           </Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
-      <ConfirmDialog
-        visible={confirmingDelete}
-        title={`Delete "${name}"?`}
-        message="Only the folder is removed. Everything inside it moves up one level, and no photos are deleted."
-        confirmLabel="Delete folder"
-        onVisibleChange={setConfirmingDelete}
-        onConfirm={() => void remove()}
-      />
     </>
   );
 }
