@@ -1,6 +1,6 @@
 import { requireNativeView } from "expo";
 import { processColor, type ViewProps } from "react-native";
-import type { MenuAction } from "./types";
+import type { DragKind, DropItemsEvent, MenuAction } from "./types";
 
 interface NativeMenuActionPayload {
   id?: string;
@@ -22,12 +22,25 @@ interface FrameContextMenuNativeProps extends ViewProps {
   tapToOpen?: boolean;
   onPressAction?: (event: { nativeEvent: { event: string } }) => void;
   dragItemId?: string;
-  dropTargetId?: string;
-  onDropItem?: (event: { nativeEvent: { itemId: string } }) => void;
+  dragItemKind?: DragKind;
+  dropAccepts?: DragKind[];
+  springLoads?: boolean;
+  onDropItems?: (event: DropItemsEvent) => void;
+  onSpringLoad?: () => void;
+}
+
+interface FrameDropZoneNativeProps extends ViewProps {
+  ownedIds: string[];
+  onDropItems: (event: DropItemsEvent) => void;
 }
 
 export const NativeContextMenuView =
   requireNativeView<FrameContextMenuNativeProps>("FrameContextMenu");
+
+export const NativeDropZoneView = requireNativeView<FrameDropZoneNativeProps>(
+  "FrameContextMenu",
+  "FrameDropZoneView"
+);
 
 export function toNativeActions(actions: MenuAction[]): NativeMenuActionPayload[] {
   return actions.map((action) => ({

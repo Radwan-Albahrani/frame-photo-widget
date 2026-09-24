@@ -6,7 +6,7 @@ public final class FrameContextMenuModule: Module {
     Name("FrameContextMenu")
 
     View(FrameContextMenuView.self) {
-      Events("onPressAction", "onMenuStateChange", "onDropItem")
+      Events("onPressAction", "onMenuStateChange", "onDropItems", "onSpringLoad")
 
       Prop("actions") { (view, actions: [[String: Any]]) in
         view.setActions(actions)
@@ -26,14 +26,31 @@ public final class FrameContextMenuModule: Module {
         view.setTapToOpen(tap ?? false)
       }
 
-      // Holding then moving lifts the card into an in-app drag carrying this id.
+      // Holding then moving lifts the card into an in-app drag carrying this id and kind.
       Prop("dragItemId") { (view, id: String?) in
         view.setDragItemId(id)
       }
 
-      // Accepts in-app drags other than itself; a drop reports the dragged id through onDropItem.
-      Prop("dropTargetId") { (view, id: String?) in
-        view.setDropTargetId(id)
+      Prop("dragItemKind") { (view, kind: FrameDragKind?) in
+        view.dragItemKind = kind
+      }
+
+      // Accepts in-app drags made only of these kinds and not holding itself; drops report through onDropItems.
+      Prop("dropAccepts") { (view, kinds: [FrameDragKind]?) in
+        view.setDropAccepts(Set(kinds ?? []))
+      }
+
+      // Hovering a drag over the card fires onSpringLoad, the way Files opens a folder mid-drag.
+      Prop("springLoads") { (view, on: Bool?) in
+        view.setSpringLoads(on ?? false)
+      }
+    }
+
+    View(FrameDropZoneView.self) {
+      Events("onDropItems")
+
+      Prop("ownedIds") { (view, ids: [String]?) in
+        view.ownedIds = Set(ids ?? [])
       }
     }
   }
@@ -49,13 +66,27 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
 {
   let onPressAction = EventDispatcher()
   let onMenuStateChange = EventDispatcher()
-  let onDropItem = EventDispatcher()
+  let onDropItems = EventDispatcher()
+  let onSpringLoad = EventDispatcher()
+  // Visibility has one source: the card hides while it rides in a drag and after it was dropped somewhere
+  // else (the reload then removes it). It uses `isHidden`, never alpha: Fabric rewrites layer.opacity from
+  // props whenever it invalidates the layer (a trait change mid-drag is enough), which would show the card
+  // again under its own drag preview.
+  var isInDrag = false {
+    didSet { updateVisibility() }
+  }
+  var wasDropped = false {
+    didSet { updateVisibility() }
+  }
+  private var isDropHighlighted = false
 
+  var dragItemKind: FrameDragKind?
+  private var dropAccepts: Set<FrameDragKind> = []
+  private var springInteraction: UISpringLoadedInteraction?
   private var dragItemId: String?
-  private var dropTargetId: String?
   private var dragInteraction: UIDragInteraction?
   private var dropInteraction: UIDropInteraction?
-  private var previewImage: UIImage?
+  private var dragImage: UIImage?
 
   private var actions: [[String: Any]] = []
   private var menuTitle: String = ""
@@ -123,9 +154,28 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     dragInteraction = interaction
   }
 
-  func setDropTargetId(_ next: String?) {
-    dropTargetId = next?.isEmpty == false ? next : nil
-    if dropTargetId == nil {
+  func setSpringLoads(_ on: Bool) {
+    guard on != (springInteraction != nil) else {
+      return
+    }
+    if let springInteraction {
+      removeInteraction(springInteraction)
+      self.springInteraction = nil
+      return
+    }
+    let behavior = FrameSpringLoadBehavior { [weak self] in self?.dragItemId }
+    let interaction = UISpringLoadedInteraction(
+      interactionBehavior: behavior, interactionEffect: nil
+    ) { [weak self] _, _ in
+      self?.onSpringLoad([:])
+    }
+    addInteraction(interaction)
+    springInteraction = interaction
+  }
+
+  func setDropAccepts(_ next: Set<FrameDragKind>) {
+    dropAccepts = next
+    if next.isEmpty {
       if let dropInteraction {
         removeInteraction(dropInteraction)
         self.dropInteraction = nil
@@ -215,7 +265,7 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     }
     // The hold has recognized: kill RN's in-flight touch NOW so releasing can never fire the row's tap.
     cancelReactTouches()
-    previewImage = renderPreviewImage()
+    dragImage = renderDragImage()
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
       self?.buildMenu()
     }
@@ -255,27 +305,37 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     onMenuStateChange(["open": false])
   }
 
+  private func updateVisibility() {
+    isHidden = isInDrag || wasDropped
+  }
+
   // No willPerformPreviewActionForMenuWith: tapping the lifted preview just dismisses the menu
   // (performing the card's tap there navigated when the user only meant to close the menu).
 
   private func targetedPreview() -> UITargetedPreview? {
     // UITargetedPreview(view:) asserts (BUG_IN_CLIENT_OF_TARGETED_PREVIEW) if the view is not in a window.
-    guard window != nil, let preview = previewView() else { return nil }
+    guard window != nil else { return nil }
     let params = UIPreviewParameters()
-    params.backgroundColor = .clear
     if previewCornerRadius > 0 {
       params.visiblePath = UIBezierPath(roundedRect: bounds, cornerRadius: previewCornerRadius)
     }
-    let target = UIPreviewTarget(container: self, center: CGPoint(x: bounds.midX, y: bounds.midY))
-    return UITargetedPreview(view: preview, parameters: params, target: target)
+    // Preview a SNAPSHOT, not `self`. Lifting the live view reparents this Fabric view (and its RN children) into
+    // UIKit's preview portal; a re-render triggered by the chosen menu action (e.g. moving the album) then unmounts
+    // a child from that reparented tree at an index Fabric doesn't expect, hard-asserting in debug ("unmount a view
+    // which has a different index"). A snapshot leaves the live tree in place, so mount/unmount stays consistent.
+    if let snapshot = snapshotView(afterScreenUpdates: false) {
+      snapshot.frame = bounds
+      let target = UIPreviewTarget(
+        container: self, center: CGPoint(x: bounds.midX, y: bounds.midY))
+      return UITargetedPreview(view: snapshot, parameters: params, target: target)
+    }
+    return UITargetedPreview(view: self, parameters: params)
   }
 
-  // Preview a rendered IMAGE of the card, never `self` or a snapshotView. Lifting the live view reparents this
-  // Fabric view into UIKit's preview portal, and a re-render from the chosen action then hard-asserts in debug
-  // ("unmount a view which has a different index"). A snapshotView is a replicant that only draws in its source
-  // window, so when the hold turns into a drag UIKit carries it into the drag window as an empty dark platter.
-  // The image is captured once, when the hold is recognized and before UIKit starts lifting anything.
-  private func renderPreviewImage() -> UIImage? {
+  // A drag previews a rendered IMAGE, not the menu's snapshotView. A snapshotView is a replicant that only draws in
+  // its source window, so carried into the drag window it shows as an empty dark platter. The image is captured
+  // when the hold is recognized, before UIKit lifts anything, and each drag item supplies it as its own preview.
+  private func renderDragImage() -> UIImage? {
     guard window != nil, bounds.width > 0, bounds.height > 0 else { return nil }
     let format = UIGraphicsImageRendererFormat.preferred()
     format.opaque = false
@@ -284,8 +344,8 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     }
   }
 
-  private func previewView() -> UIImageView? {
-    guard let image = previewImage ?? renderPreviewImage() else { return nil }
+  private func dragPreviewView() -> UIImageView? {
+    guard let image = dragImage ?? renderDragImage() else { return nil }
     let imageView = UIImageView(image: image)
     imageView.frame = bounds
     return imageView
@@ -297,13 +357,62 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     _ interaction: UIDragInteraction,
     itemsForBeginning session: UIDragSession
   ) -> [UIDragItem] {
-    guard let dragItemId else {
+    cancelReactTouches()
+    return dragItems()
+  }
+
+  // A second finger tapping this card mid-drag adds it to the stack under the first, like the Home Screen.
+  func dragInteraction(
+    _ interaction: UIDragInteraction,
+    itemsForAddingTo session: UIDragSession,
+    withTouchAt point: CGPoint
+  ) -> [UIDragItem] {
+    guard let dragItemId, !FrameDragSession.ids.contains(dragItemId) else {
       return []
     }
-    cancelReactTouches()
+    dragImage = renderDragImage()
+    let items = dragItems()
+    join(items)
+    return items
+  }
+
+  private func join(_ items: [UIDragItem]) {
+    for item in items {
+      if let payload = item.localObject as? FrameDragPayload {
+        FrameDragSession.join(payload, from: self)
+      }
+    }
+  }
+
+  func dragInteraction(
+    _ interaction: UIDragInteraction,
+    item: UIDragItem,
+    willAnimateCancelWith animator: UIDragAnimating
+  ) {
+    guard let payload = item.localObject as? FrameDragPayload else { return }
+    animator.addCompletion { _ in FrameDragSession.reveal(payload.id) }
+  }
+
+  private func dragItems() -> [UIDragItem] {
+    guard let dragItemId, let dragItemKind else {
+      return []
+    }
     let item = UIDragItem(itemProvider: NSItemProvider())
-    item.localObject = dragItemId
+    item.localObject = FrameDragPayload(id: dragItemId, kind: dragItemKind)
+    item.previewProvider = { [weak self] in
+      guard let self, let preview = self.dragPreviewView() else { return nil }
+      return UIDragPreview(view: preview, parameters: self.dragPreviewParameters())
+    }
     return [item]
+  }
+
+  private func dragPreviewParameters() -> UIDragPreviewParameters {
+    let params = UIDragPreviewParameters()
+    params.backgroundColor = .clear
+    if previewCornerRadius > 0 {
+      params.visiblePath = UIBezierPath(roundedRect: bounds, cornerRadius: previewCornerRadius)
+    }
+    return params
   }
 
   func dragInteraction(
@@ -311,15 +420,10 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     previewForLifting item: UIDragItem,
     session: UIDragSession
   ) -> UITargetedDragPreview? {
-    guard window != nil, let preview = previewView() else { return nil }
-    let params = UIDragPreviewParameters()
-    params.backgroundColor = .clear
-    if previewCornerRadius > 0 {
-      params.visiblePath = UIBezierPath(roundedRect: bounds, cornerRadius: previewCornerRadius)
-    }
+    guard window != nil, let preview = dragPreviewView() else { return nil }
     let target = UIDragPreviewTarget(
       container: self, center: CGPoint(x: bounds.midX, y: bounds.midY))
-    return UITargetedDragPreview(view: preview, parameters: params, target: target)
+    return UITargetedDragPreview(view: preview, parameters: dragPreviewParameters(), target: target)
   }
 
   func dragInteraction(
@@ -329,28 +433,42 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     return true
   }
 
-  // MARK: - UIDropInteractionDelegate
-
-  private static func draggedId(_ session: UIDropSession) -> String? {
-    return session.localDragSession?.items.first?.localObject as? String
+  func dragInteraction(_ interaction: UIDragInteraction, sessionWillBegin session: UIDragSession) {
+    join(session.items)
   }
 
-  private func accepts(_ session: UIDropSession) -> Bool {
-    guard let dragged = Self.draggedId(session) else {
-      return false
+  func dragInteraction(
+    _ interaction: UIDragInteraction,
+    session: UIDragSession,
+    didEndWith operation: UIDropOperation
+  ) {
+    FrameDragSession.end(moved: operation == .move)
+  }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window != nil, !isInDrag {
+      wasDropped = false
     }
-    return dragged != dropTargetId
+  }
+
+  // MARK: - UIDropInteractionDelegate
+
+  private func accepts(_ session: UIDropSession) -> Bool {
+    let payloads = FrameDragPayload.all(session)
+    return !payloads.isEmpty
+      && payloads.allSatisfy { $0.id != dragItemId && dropAccepts.contains($0.kind) }
   }
 
   func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
-    return Self.draggedId(session) != nil
+    return !FrameDragPayload.all(session).isEmpty
   }
 
   func dropInteraction(
     _ interaction: UIDropInteraction,
     sessionDidUpdate session: UIDropSession
   ) -> UIDropProposal {
-    return UIDropProposal(operation: accepts(session) ? .move : .forbidden)
+    return UIDropProposal(operation: accepts(session) ? .move : .cancel)
   }
 
   func dropInteraction(_ interaction: UIDropInteraction, sessionDidEnter session: UIDropSession) {
@@ -369,21 +487,34 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     setDropHighlight(false)
   }
 
+  // The dropped card shrinks into this one, so it reads as going inside rather than vanishing in place.
+  func dropInteraction(
+    _ interaction: UIDropInteraction,
+    previewForDropping item: UIDragItem,
+    withDefault defaultPreview: UITargetedDragPreview
+  ) -> UITargetedDragPreview? {
+    let target = UIDragPreviewTarget(
+      container: self, center: CGPoint(x: bounds.midX, y: bounds.midY * 0.8),
+      transform: CGAffineTransform(scaleX: 0.25, y: 0.25))
+    return defaultPreview.retargetedPreview(with: target)
+  }
+
   func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
     setDropHighlight(false)
-    guard let dragged = Self.draggedId(session) else {
-      return
-    }
-    onDropItem(["itemId": dragged])
+    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    onDropItems(["items": FrameDragPayload.all(session).map { $0.event }])
   }
 
   private func setDropHighlight(_ on: Bool) {
+    guard on != isDropHighlighted else {
+      return
+    }
+    isDropHighlighted = on
     UIView.animate(
       withDuration: 0.35, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0,
       options: [.beginFromCurrentState, .allowUserInteraction]
     ) {
       self.transform = on ? CGAffineTransform(scaleX: 1.06, y: 1.06) : .identity
-      self.alpha = on ? 0.85 : 1
     }
   }
 

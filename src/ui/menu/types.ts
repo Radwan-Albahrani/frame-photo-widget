@@ -3,6 +3,21 @@ import type { ColorValue, StyleProp, ViewStyle } from "react-native";
 
 export type NativeActionEvent = { nativeEvent: { event: string } };
 
+export type DragKind = "album" | "group";
+
+export interface DragItem {
+  id: string;
+  kind: DragKind;
+}
+
+export type DropItemsEvent = { nativeEvent: { items: DragItem[] } };
+
+export interface DropTarget {
+  accepts: DragKind[];
+  onDrop: (items: DragItem[]) => void;
+  onSpringLoad?: () => void;
+}
+
 type MenuState = "off" | "on" | "mixed";
 
 interface MenuAttributes {
@@ -45,8 +60,7 @@ export interface HoldMenuProps {
   disabled?: boolean;
   accessibilityActions?: { name: string; label?: string }[];
   onAccessibilityAction?: (event: { nativeEvent: { actionName: string } }) => void;
-  dragItemId?: string;
-  dropTargetId?: string;
-  onDropItem?: (itemId: string) => void;
+  drag?: DragItem;
+  drop?: DropTarget;
   children: ReactNode;
 }
