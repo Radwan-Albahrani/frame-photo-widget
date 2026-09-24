@@ -55,6 +55,7 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
   private var dropTargetId: String?
   private var dragInteraction: UIDragInteraction?
   private var dropInteraction: UIDropInteraction?
+  private var previewImage: UIImage?
 
   private var actions: [[String: Any]] = []
   private var menuTitle: String = ""
@@ -214,6 +215,7 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     }
     // The hold has recognized: kill RN's in-flight touch NOW so releasing can never fire the row's tap.
     cancelReactTouches()
+    previewImage = renderPreviewImage()
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
       self?.buildMenu()
     }
@@ -258,22 +260,35 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
 
   private func targetedPreview() -> UITargetedPreview? {
     // UITargetedPreview(view:) asserts (BUG_IN_CLIENT_OF_TARGETED_PREVIEW) if the view is not in a window.
-    guard window != nil else { return nil }
+    guard window != nil, let preview = previewView() else { return nil }
     let params = UIPreviewParameters()
+    params.backgroundColor = .clear
     if previewCornerRadius > 0 {
       params.visiblePath = UIBezierPath(roundedRect: bounds, cornerRadius: previewCornerRadius)
     }
-    // Preview a SNAPSHOT, not `self`. Lifting the live view reparents this Fabric view (and its RN children) into
-    // UIKit's preview portal; a re-render triggered by the chosen menu action (e.g. moving the album) then unmounts
-    // a child from that reparented tree at an index Fabric doesn't expect, hard-asserting in debug ("unmount a view
-    // which has a different index"). A snapshot leaves the live tree in place, so mount/unmount stays consistent.
-    if let snapshot = snapshotView(afterScreenUpdates: false) {
-      snapshot.frame = bounds
-      let target = UIPreviewTarget(
-        container: self, center: CGPoint(x: bounds.midX, y: bounds.midY))
-      return UITargetedPreview(view: snapshot, parameters: params, target: target)
+    let target = UIPreviewTarget(container: self, center: CGPoint(x: bounds.midX, y: bounds.midY))
+    return UITargetedPreview(view: preview, parameters: params, target: target)
+  }
+
+  // Preview a rendered IMAGE of the card, never `self` or a snapshotView. Lifting the live view reparents this
+  // Fabric view into UIKit's preview portal, and a re-render from the chosen action then hard-asserts in debug
+  // ("unmount a view which has a different index"). A snapshotView is a replicant that only draws in its source
+  // window, so when the hold turns into a drag UIKit carries it into the drag window as an empty dark platter.
+  // The image is captured once, when the hold is recognized and before UIKit starts lifting anything.
+  private func renderPreviewImage() -> UIImage? {
+    guard window != nil, bounds.width > 0, bounds.height > 0 else { return nil }
+    let format = UIGraphicsImageRendererFormat.preferred()
+    format.opaque = false
+    return UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
+      drawHierarchy(in: bounds, afterScreenUpdates: false)
     }
-    return UITargetedPreview(view: self, parameters: params)
+  }
+
+  private func previewView() -> UIImageView? {
+    guard let image = previewImage ?? renderPreviewImage() else { return nil }
+    let imageView = UIImageView(image: image)
+    imageView.frame = bounds
+    return imageView
   }
 
   // MARK: - UIDragInteractionDelegate
@@ -296,17 +311,7 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     previewForLifting item: UIDragItem,
     session: UIDragSession
   ) -> UITargetedDragPreview? {
-    guard window != nil, bounds.width > 0, bounds.height > 0 else {
-      return nil
-    }
-    // A snapshotView of a Fabric subtree lifts as an empty dark frame; drag its rendered pixels instead.
-    let format = UIGraphicsImageRendererFormat.preferred()
-    format.opaque = false
-    let rendered = UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
-      drawHierarchy(in: bounds, afterScreenUpdates: false)
-    }
-    let imageView = UIImageView(image: rendered)
-    imageView.frame = bounds
+    guard window != nil, let preview = previewView() else { return nil }
     let params = UIDragPreviewParameters()
     params.backgroundColor = .clear
     if previewCornerRadius > 0 {
@@ -314,7 +319,7 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
     }
     let target = UIDragPreviewTarget(
       container: self, center: CGPoint(x: bounds.midX, y: bounds.midY))
-    return UITargetedDragPreview(view: imageView, parameters: params, target: target)
+    return UITargetedDragPreview(view: preview, parameters: params, target: target)
   }
 
   func dragInteraction(
