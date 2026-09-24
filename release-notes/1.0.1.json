@@ -1,10 +1,10 @@
 {
   "en-US": {
-    "whatsNew": "Deleting albums and folders works again, and you can now organize your library by dragging.\n\n• Fixed deleting an album or folder doing nothing\n• Drag albums and folders onto a folder to move them\n• Drop one album on another to make a folder\n• Hover over a folder to open it, or near Back to go up, while dragging\n• Tap more cards with another finger to drag them together\n• Albums with photos ask before deleting; empty ones go in one tap",
+    "whatsNew": "Deleting albums and folders works again, and organizing your library is now drag and drop.\n\n• Fixed deleting an album or folder doing nothing\n• Drag albums and folders onto a folder to move them, or onto an album to make a folder\n• Hover over a folder to open it, or near Back to go up, while dragging\n• Albums and folders zoom open from the card you tap\n• Tapping a widget opens its album with a way back to your library\n• Albums with photos ask before deleting; empty ones go in one tap",
     "promotionalText": "Free forever. No ads, no subscriptions, no paywall, no limits. Unlimited albums, a different album on every widget, and photos that change on their own all day."
   },
   "en-GB": {
-    "whatsNew": "Deleting albums and folders works again, and you can now organize your library by dragging.\n\n• Fixed deleting an album or folder doing nothing\n• Drag albums and folders onto a folder to move them\n• Drop one album on another to make a folder\n• Hover over a folder to open it, or near Back to go up, while dragging\n• Tap more cards with another finger to drag them together\n• Albums with photos ask before deleting; empty ones go in one tap",
+    "whatsNew": "Deleting albums and folders works again, and organizing your library is now drag and drop.\n\n• Fixed deleting an album or folder doing nothing\n• Drag albums and folders onto a folder to move them, or onto an album to make a folder\n• Hover over a folder to open it, or near Back to go up, while dragging\n• Albums and folders zoom open from the card you tap\n• Tapping a widget opens its album with a way back to your library\n• Albums with photos ask before deleting; empty ones go in one tap",
     "promotionalText": "Free forever. No ads, no subscriptions, no paywall, no limits. Unlimited albums, a different album on every widget, and photos that change on their own all day."
   }
 }
