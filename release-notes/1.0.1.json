@@ -1,5 +1,10 @@
 {
   "en-US": {
-    "whatsNew": "Deleting an album or folder from its touch-and-hold menu works again. Before, confirming the delete did nothing and the album stayed put."
+    "whatsNew": "Deleting albums and folders works again, and you can now drag albums into folders.\n\n• Fixed deleting an album or folder doing nothing\n• Drag an album or folder onto a folder to move it there\n• Empty albums delete in one tap; albums with photos ask first\n• Deleting a folder keeps its albums and moves them up a level",
+    "promotionalText": "Free forever. No ads, no subscriptions, no paywall, no limits. Unlimited albums, a different album on every widget, and photos that change on their own all day."
+  },
+  "en-GB": {
+    "whatsNew": "Deleting albums and folders works again, and you can now drag albums into folders.\n\n• Fixed deleting an album or folder doing nothing\n• Drag an album or folder onto a folder to move it there\n• Empty albums delete in one tap; albums with photos ask first\n• Deleting a folder keeps its albums and moves them up a level",
+    "promotionalText": "Free forever. No ads, no subscriptions, no paywall, no limits. Unlimited albums, a different album on every widget, and photos that change on their own all day."
   }
 }
