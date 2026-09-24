@@ -6,7 +6,7 @@ public final class FrameContextMenuModule: Module {
     Name("FrameContextMenu")
 
     View(FrameContextMenuView.self) {
-      Events("onPressAction", "onMenuStateChange")
+      Events("onPressAction", "onMenuStateChange", "onDropItem")
 
       Prop("actions") { (view, actions: [[String: Any]]) in
         view.setActions(actions)
@@ -25,6 +25,16 @@ public final class FrameContextMenuModule: Module {
       Prop("tapToOpen") { (view, tap: Bool?) in
         view.setTapToOpen(tap ?? false)
       }
+
+      // Holding then moving lifts the card into an in-app drag carrying this id.
+      Prop("dragItemId") { (view, id: String?) in
+        view.setDragItemId(id)
+      }
+
+      // Accepts in-app drags other than itself; a drop reports the dragged id through onDropItem.
+      Prop("dropTargetId") { (view, id: String?) in
+        view.setDropTargetId(id)
+      }
     }
   }
 }
@@ -34,9 +44,17 @@ public final class FrameContextMenuModule: Module {
 /// Long-press mode uses `UIContextMenuInteraction` (lift + anchored menu); tap mode floats a transparent
 /// `UIButton` overlay (the same UIKit menu, `showsMenuAsPrimaryAction`). RN children render normally
 /// underneath — the ExpoBlurView pattern — and stay non-interactive triggers.
-final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate {
+final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate,
+  UIDragInteractionDelegate, UIDropInteractionDelegate
+{
   let onPressAction = EventDispatcher()
   let onMenuStateChange = EventDispatcher()
+  let onDropItem = EventDispatcher()
+
+  private var dragItemId: String?
+  private var dropTargetId: String?
+  private var dragInteraction: UIDragInteraction?
+  private var dropInteraction: UIDropInteraction?
 
   private var actions: [[String: Any]] = []
   private var menuTitle: String = ""
@@ -84,6 +102,41 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate {
     } else {
       installLongPress()
     }
+  }
+
+  func setDragItemId(_ next: String?) {
+    dragItemId = next?.isEmpty == false ? next : nil
+    if dragItemId == nil {
+      if let dragInteraction {
+        removeInteraction(dragInteraction)
+        self.dragInteraction = nil
+      }
+      return
+    }
+    guard dragInteraction == nil else {
+      return
+    }
+    let interaction = UIDragInteraction(delegate: self)
+    interaction.isEnabled = true
+    addInteraction(interaction)
+    dragInteraction = interaction
+  }
+
+  func setDropTargetId(_ next: String?) {
+    dropTargetId = next?.isEmpty == false ? next : nil
+    if dropTargetId == nil {
+      if let dropInteraction {
+        removeInteraction(dropInteraction)
+        self.dropInteraction = nil
+      }
+      return
+    }
+    guard dropInteraction == nil else {
+      return
+    }
+    let interaction = UIDropInteraction(delegate: self)
+    addInteraction(interaction)
+    dropInteraction = interaction
   }
 
   // MARK: - Trigger installation
@@ -221,6 +274,112 @@ final class FrameContextMenuView: ExpoView, UIContextMenuInteractionDelegate {
       return UITargetedPreview(view: snapshot, parameters: params, target: target)
     }
     return UITargetedPreview(view: self, parameters: params)
+  }
+
+  // MARK: - UIDragInteractionDelegate
+
+  func dragInteraction(
+    _ interaction: UIDragInteraction,
+    itemsForBeginning session: UIDragSession
+  ) -> [UIDragItem] {
+    guard let dragItemId else {
+      return []
+    }
+    cancelReactTouches()
+    let item = UIDragItem(itemProvider: NSItemProvider())
+    item.localObject = dragItemId
+    return [item]
+  }
+
+  func dragInteraction(
+    _ interaction: UIDragInteraction,
+    previewForLifting item: UIDragItem,
+    session: UIDragSession
+  ) -> UITargetedDragPreview? {
+    guard window != nil, bounds.width > 0, bounds.height > 0 else {
+      return nil
+    }
+    // A snapshotView of a Fabric subtree lifts as an empty dark frame; drag its rendered pixels instead.
+    let format = UIGraphicsImageRendererFormat.preferred()
+    format.opaque = false
+    let rendered = UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
+      drawHierarchy(in: bounds, afterScreenUpdates: false)
+    }
+    let imageView = UIImageView(image: rendered)
+    imageView.frame = bounds
+    let params = UIDragPreviewParameters()
+    params.backgroundColor = .clear
+    if previewCornerRadius > 0 {
+      params.visiblePath = UIBezierPath(roundedRect: bounds, cornerRadius: previewCornerRadius)
+    }
+    let target = UIDragPreviewTarget(
+      container: self, center: CGPoint(x: bounds.midX, y: bounds.midY))
+    return UITargetedDragPreview(view: imageView, parameters: params, target: target)
+  }
+
+  func dragInteraction(
+    _ interaction: UIDragInteraction,
+    sessionIsRestrictedToDraggingApplication session: UIDragSession
+  ) -> Bool {
+    return true
+  }
+
+  // MARK: - UIDropInteractionDelegate
+
+  private static func draggedId(_ session: UIDropSession) -> String? {
+    return session.localDragSession?.items.first?.localObject as? String
+  }
+
+  private func accepts(_ session: UIDropSession) -> Bool {
+    guard let dragged = Self.draggedId(session) else {
+      return false
+    }
+    return dragged != dropTargetId
+  }
+
+  func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
+    return Self.draggedId(session) != nil
+  }
+
+  func dropInteraction(
+    _ interaction: UIDropInteraction,
+    sessionDidUpdate session: UIDropSession
+  ) -> UIDropProposal {
+    return UIDropProposal(operation: accepts(session) ? .move : .forbidden)
+  }
+
+  func dropInteraction(_ interaction: UIDropInteraction, sessionDidEnter session: UIDropSession) {
+    guard accepts(session) else {
+      return
+    }
+    UISelectionFeedbackGenerator().selectionChanged()
+    setDropHighlight(true)
+  }
+
+  func dropInteraction(_ interaction: UIDropInteraction, sessionDidExit session: UIDropSession) {
+    setDropHighlight(false)
+  }
+
+  func dropInteraction(_ interaction: UIDropInteraction, sessionDidEnd session: UIDropSession) {
+    setDropHighlight(false)
+  }
+
+  func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
+    setDropHighlight(false)
+    guard let dragged = Self.draggedId(session) else {
+      return
+    }
+    onDropItem(["itemId": dragged])
+  }
+
+  private func setDropHighlight(_ on: Bool) {
+    UIView.animate(
+      withDuration: 0.35, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0,
+      options: [.beginFromCurrentState, .allowUserInteraction]
+    ) {
+      self.transform = on ? CGAffineTransform(scaleX: 1.06, y: 1.06) : .identity
+      self.alpha = on ? 0.85 : 1
+    }
   }
 
   // MARK: - Menu building

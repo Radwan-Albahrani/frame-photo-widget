@@ -21,6 +21,9 @@ interface FrameContextMenuNativeProps extends ViewProps {
   previewCornerRadius?: number;
   tapToOpen?: boolean;
   onPressAction?: (event: { nativeEvent: { event: string } }) => void;
+  dragItemId?: string;
+  dropTargetId?: string;
+  onDropItem?: (event: { nativeEvent: { itemId: string } }) => void;
 }
 
 export const NativeContextMenuView =

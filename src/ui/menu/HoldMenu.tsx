@@ -64,6 +64,9 @@ export function HoldMenu({
   accessibilityActions,
   onAccessibilityAction,
   testID,
+  dragItemId,
+  dropTargetId,
+  onDropItem,
   children,
 }: HoldMenuProps) {
   return (
@@ -80,6 +83,9 @@ export function HoldMenu({
       accessibilityActions={accessibilityActions}
       onAccessibilityAction={onAccessibilityAction}
       testID={testID}
+      dragItemId={dragItemId}
+      dropTargetId={dropTargetId}
+      onDropItem={onDropItem ? (event) => onDropItem(event.nativeEvent.itemId) : undefined}
     >
       <CardPressable onPress={onPress} disabled={disabled} style={fill ? FILL_STYLE : undefined}>
         {children}

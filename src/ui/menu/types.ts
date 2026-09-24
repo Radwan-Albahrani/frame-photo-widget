@@ -45,5 +45,8 @@ export interface HoldMenuProps {
   disabled?: boolean;
   accessibilityActions?: { name: string; label?: string }[];
   onAccessibilityAction?: (event: { nativeEvent: { actionName: string } }) => void;
+  dragItemId?: string;
+  dropTargetId?: string;
+  onDropItem?: (itemId: string) => void;
   children: ReactNode;
 }
