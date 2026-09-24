@@ -69,6 +69,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
   const [folders, setFolders] = useState<GroupNode[]>([]);
   const [subtrees, setSubtrees] = useState<Record<string, string[]>>({});
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const reload = useCallback(async () => {
     const [browse, everyAlbum] = await Promise.all([
@@ -134,6 +135,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
       await AlbumsService.remove(pendingDelete.id);
     }
     await WidgetService.sync();
+    setConfirmingDelete(false);
     setPendingDelete(null);
     await reload();
   }, [pendingDelete, reload]);
@@ -152,6 +154,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
       }
       if (action === DELETE) {
         setPendingDelete({ kind: "group", id: group.id, name: group.name });
+        setConfirmingDelete(true);
       }
     },
     [moveGroup, router]
@@ -171,6 +174,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
       }
       if (action === DELETE) {
         setPendingDelete({ kind: "album", id: album.id, name: album.name });
+        setConfirmingDelete(true);
       }
     },
     [moveAlbum, router]
@@ -264,7 +268,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
       )}
 
       <ConfirmDialog
-        visible={pendingDelete !== null}
+        visible={confirmingDelete}
         title={pendingDelete === null ? "" : `Delete "${pendingDelete.name}"?`}
         message={
           pendingDelete?.kind === "group"
@@ -272,9 +276,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
             : "The album and its copies are removed. Your originals in Photos are untouched."
         }
         confirmLabel={pendingDelete?.kind === "group" ? "Delete folder" : "Delete"}
-        onVisibleChange={(visible) => {
-          if (!visible) setPendingDelete(null);
-        }}
+        onVisibleChange={setConfirmingDelete}
         onConfirm={() => void confirmDelete()}
       />
     </ScrollView>
