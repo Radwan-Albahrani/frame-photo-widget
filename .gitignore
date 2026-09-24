@@ -45,3 +45,5 @@ targets/*/generated.entitlements
 # .claude/skills symlinks into .agents/skills, one link per skill
 .agents
 .claude
+
+.asc/release/
