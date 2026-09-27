@@ -229,6 +229,10 @@ enum PhotoLoader {
 
   // what: WidgetKit archives a UIImage's JPEG bytes as-is but re-encodes a CGImage losslessly at 4x the size
   static func jpeg(fileName: String?, frame: CGSize, fit: Bool) -> Data? {
+    autoreleasepool { encode(fileName: fileName, frame: frame, fit: fit) }
+  }
+
+  private static func encode(fileName: String?, frame: CGSize, fit: Bool) -> Data? {
     guard let fileName, !fileName.isEmpty, let url = FrameStore.photoURL(fileName),
       let source = CGImageSourceCreateWithURL(
         url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
@@ -479,7 +483,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
   }
 
   func snapshot(for configuration: SelectAlbumIntent, in context: Context) async -> PhotoEntry {
-    plan(for: configuration, in: context).entries.first ?? placeholder(in: context)
+    schedule(for: configuration, in: context, count: 1).first ?? placeholder(in: context)
   }
 
   func timeline(for configuration: SelectAlbumIntent, in context: Context) async -> Timeline<
@@ -538,6 +542,17 @@ struct PhotoProvider: AppIntentTimelineProvider {
   }
 
   private func plan(for configuration: SelectAlbumIntent, in context: Context) -> Plan {
+    let candidates = schedule(for: configuration, in: context, count: Self.maxEntries)
+    guard let first = candidates.first, first.fileName != nil else {
+      return Plan(entries: candidates, archiveBytes: 0)
+    }
+    return Self.fitToBudget(
+      candidates, frame: first.frame, fit: first.settings.contentMode == .fit)
+  }
+
+  private func schedule(
+    for configuration: SelectAlbumIntent, in context: Context, count wanted: Int
+  ) -> [PhotoEntry] {
     let settings = FrameStore.settings()
     let frame = Self.frame(in: context)
     guard
@@ -545,13 +560,12 @@ struct PhotoProvider: AppIntentTimelineProvider {
         albumId: configuration.album?.id, groupId: configuration.group?.id),
       !album.photos.isEmpty
     else {
-      return Plan(
-        entries: [
-          PhotoEntry(
-            date: Date(), fileName: nil, albumId: configuration.album?.id,
-            albumName: configuration.album?.name ?? "Frame",
-            position: 0, total: 0, settings: settings, frame: frame)
-        ], archiveBytes: 0)
+      return [
+        PhotoEntry(
+          date: Date(), fileName: nil, albumId: configuration.album?.id,
+          albumName: configuration.album?.name ?? "Frame",
+          position: 0, total: 0, settings: settings, frame: frame)
+      ]
     }
 
     let minutes = max(Self.minimumIntervalMinutes, settings.refreshMinutes)
@@ -564,7 +578,6 @@ struct PhotoProvider: AppIntentTimelineProvider {
     let total = album.photos.count
     let firstSlot = Int(slot)
     var orders: [Int: [String]] = [:]
-    let wanted = Self.maxEntries
     var built: [PhotoEntry] = []
     built.reserveCapacity(wanted)
 
@@ -590,7 +603,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
           settings: settings,
           frame: frame))
     }
-    return Self.fitToBudget(built, frame: frame, fit: settings.contentMode == .fit)
+    return built
   }
 
   private static func fitToBudget(_ candidates: [PhotoEntry], frame: CGSize, fit: Bool) -> Plan {

@@ -228,9 +228,10 @@ So `PhotoLoader.jpeg` decodes each photo to the widget's native pixel frame
 (`context.displaySize` × `displayScale`, carried on the entry), crops to the frame's aspect for
 the fill layout, encodes at JPEG 0.9 and the view wraps it in `UIImage(data:)`. Nothing is decoded
 above the source, so a small photo is never upscaled at archive time. The provider then runs the
-same encode over the candidate entries, adds up the real bytes (once per distinct photo; the fit layout uses one image for both its
-blurred and sharp layers and WidgetKit stores it once, as the on-disk archives confirm) and stops at
-`archiveBudgetBytes` (6 MiB) or 48 entries. Entries are therefore per widget, per device and per
+same encode over the candidate entries, adds up the real bytes (per entry, so a photo that repeats in
+a small album counts every time it appears, which over-counts rather than under-counts; the fit layout
+uses one image for both its blurred and sharp layers and WidgetKit stores it once, as the on-disk
+archives confirm) and stops at `archiveBudgetBytes` (6 MiB) or 48 entries. Entries are therefore per widget, per device and per
 album: a small widget on a low-entropy album schedules 48, a large widget on busy photos fewer.
 The record the extension writes carries the frame and the measured bytes, so Diagnostics shows
 what actually happened.
@@ -254,6 +255,45 @@ Two dead ends worth not repeating: a per-family pixel table (640 for every famil
 large widgets at 56% of native and over-decoded small ones above what they can display; and
 `UIImage(contentsOfFile:)` / `UIImage(data:)` on the raw stored file fails the per-image cap on
 small widgets, because a 1200 px tall image is over 2.0 × 493.
+
+## Every photo measured must be released before the next (1.0.2)
+
+`PhotoLoader.jpeg` runs inside `autoreleasepool`. Without it, the decode, the `UIImage` and the JPEG
+buffers of every photo measured by `fitToBudget` stayed alive until `timeline(for:in:)` returned,
+because nothing drains the pool inside one provider call. The cost therefore scaled with the number
+of DISTINCT photos in the timeline, not with the entry count, which is why it hid for so long: a
+10-photo album repeats the same 10 files across 48 entries and stayed under the ceiling, while a
+133-photo album decodes a fresh photo for every entry. On the phone, that album left every size of
+widget on the grey placeholder, with 11 of 12 widgets reporting and no crash report on the device.
+
+Measured 2026-09-27 in the iOS 27 simulator: the widget's own `FrameWidgets.swift`, reading photos
+from a folder, driven through `fitToBudget` and then one `PhotoLoader.image` per kept entry (what
+WidgetKit does when it archives). The photos were 133 distinct 1600 px JPEGs at quality 0.85, about
+300 KB each, the same shape as the stored copies. The figure is `ledger_phys_footprint_peak` for the
+whole run:
+
+| Album | Frame | Layout | Before | After |
+|---|---|---|---|---|
+| 10 photos | 493 × 493 | fit | 50 MB | 8.9 MB |
+| 10 photos | 1049 × 493 | fit | 62 MB | 9.9 MB |
+| 133 photos | 493 × 493 | fit | 77 MB | 8.9 MB |
+| 133 photos | 1049 × 493 | fit | 94 MB | 9.9 MB |
+| 133 photos | 1049 × 1095 | fit | 335 MB | 26.5 MB |
+| 133 photos | 1049 × 1095 | fill | 363 MB | 32.8 MB |
+
+The simulator overstates the device, since the 62 MB 10-photo medium case runs fine on a phone. What
+matters is that memory is now flat in album size. The remaining peak is one photo's transient ImageIO
+decode: about 22 MB for a 1600 px source decoded to 1049 × 1399, the same whether UIKit or
+`CGImageDestination` encodes it, and released before the next photo.
+
+`snapshot(for:in:)` builds only the first entry and measures nothing. It used to run the whole
+48-entry budget pass to return one entry.
+
+A big album already plays through whole before it reshuffles. Entries map to absolute clock slots:
+the slot number divided by the album size gives the pass, and the remainder gives the position in
+that pass's order. A timeline of 33 or 48 entries is therefore one batch of a longer pass, and the
+next timeline resumes it where the clock says, with the same shuffle seed, until every photo has
+been shown.
 
 ## Rotation is entries, not reloads
 
