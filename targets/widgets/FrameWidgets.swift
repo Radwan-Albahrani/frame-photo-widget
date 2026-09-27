@@ -61,14 +61,31 @@ enum FrameStore {
     return parsed
   }
 
-  static func recordStatus(_ record: [String: Any], key: String) {
-    guard let defaults = groupDefaults() else { return }
-    var all: [String: Any] = [:]
-    if let raw = defaults.string(forKey: statusKey), let data = raw.data(using: .utf8),
+  private static let statusLock = NSLock()
+
+  private static func statusRecords(_ defaults: UserDefaults) -> [String: Any] {
+    guard let raw = defaults.string(forKey: statusKey), let data = raw.data(using: .utf8),
       let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    {
-      all = parsed
-    }
+    else { return [:] }
+    return parsed
+  }
+
+  static func startedAt(key: String) -> Date? {
+    guard let defaults = groupDefaults() else { return nil }
+    statusLock.lock()
+    defer { statusLock.unlock() }
+    guard let record = statusRecords(defaults)[key] as? [String: Any],
+      let millis = (record["startedAt"] as? NSNumber)?.doubleValue
+    else { return nil }
+    return Date(timeIntervalSince1970: millis / 1000)
+  }
+
+  static func recordStatus(_ record: [String: Any], key: String, placedKeys: Set<String>?) {
+    guard let defaults = groupDefaults() else { return }
+    statusLock.lock()
+    defer { statusLock.unlock() }
+    var all = statusRecords(defaults)
+    if let placedKeys, placedKeys.contains(key) { all = all.filter { placedKeys.contains($0.key) } }
     all[key] = record
     guard let data = try? JSONSerialization.data(withJSONObject: all),
       let json = String(data: data, encoding: .utf8)
@@ -509,15 +526,23 @@ struct PhotoProvider: AppIntentTimelineProvider {
   }
 
   func snapshot(for configuration: SelectAlbumIntent, in context: Context) async -> PhotoEntry {
-    schedule(for: configuration, in: context, count: 1).first ?? placeholder(in: context)
+    let startedAt =
+      FrameStore.startedAt(key: Self.statusKey(family: context.family, configuration: configuration))
+      ?? Date()
+    return schedule(for: configuration, in: context, startedAt: startedAt, count: 1).first
+      ?? placeholder(in: context)
   }
 
   func timeline(for configuration: SelectAlbumIntent, in context: Context) async -> Timeline<
     PhotoEntry
   > {
-    let plan = plan(for: configuration, in: context)
+    let key = Self.statusKey(family: context.family, configuration: configuration)
+    let startedAt = FrameStore.startedAt(key: key) ?? Date()
+    let plan = plan(for: configuration, in: context, startedAt: startedAt)
     let built = plan.entries
-    recordStatus(plan, configuration: configuration, family: context.family)
+    recordStatus(
+      plan, configuration: configuration, family: context.family, key: key, startedAt: startedAt,
+      placedKeys: await Self.placedKeys())
     guard !built.isEmpty else {
       return Timeline(
         entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(3600)))
@@ -525,7 +550,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
     return Timeline(entries: built, policy: .atEnd)
   }
 
-  private static func familyName(_ family: WidgetFamily) -> String {
+  static func familyName(_ family: WidgetFamily) -> String {
     switch family {
     case .systemSmall: return "small"
     case .systemMedium: return "medium"
@@ -535,14 +560,30 @@ struct PhotoProvider: AppIntentTimelineProvider {
     }
   }
 
+  static func statusKey(family: WidgetFamily, configuration: SelectAlbumIntent) -> String {
+    [
+      familyName(family), configuration.albumId ?? "", configuration.groupId ?? "",
+      "\(configuration.shuffle)",
+    ].joined(separator: "|")
+  }
+
+  private static func placedKeys() async -> Set<String>? {
+    guard let placed = try? await WidgetCenter.shared.currentConfigurations() else { return nil }
+    return Set(
+      placed.compactMap { info in
+        info.widgetConfigurationIntent(of: SelectAlbumIntent.self).map {
+          statusKey(family: info.family, configuration: $0)
+        }
+      })
+  }
+
   private func recordStatus(
-    _ plan: Plan, configuration: SelectAlbumIntent, family: WidgetFamily
+    _ plan: Plan, configuration: SelectAlbumIntent, family: WidgetFamily, key: String,
+    startedAt: Date, placedKeys: Set<String>?
   ) {
     let built = plan.entries
     guard let first = built.first else { return }
     let name = Self.familyName(family)
-    let albumId = first.albumId ?? ""
-    let groupId = configuration.groupId ?? ""
     // what: the spacing actually used, so a change to the interval rule cannot desync the report
     let spacing =
       built.count > 1
@@ -551,7 +592,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
     FrameStore.recordStatus(
       [
         "family": name,
-        "albumId": albumId,
+        "albumId": first.albumId ?? "",
         "albumName": first.albumName,
         "groupName": configuration.groupId == nil ? "" : configuration.group?.name ?? "",
         "shuffle": configuration.shuffle,
@@ -563,12 +604,16 @@ struct PhotoProvider: AppIntentTimelineProvider {
         "archiveBytes": plan.archiveBytes,
         "intervalMinutes": spacing,
         "firstEntryAt": first.date.timeIntervalSince1970 * 1000,
+        "startedAt": startedAt.timeIntervalSince1970 * 1000,
         "updatedAt": Date().timeIntervalSince1970 * 1000,
-      ], key: "\(name)|\(albumId)|\(groupId)|\(configuration.shuffle)")
+      ], key: key, placedKeys: placedKeys)
   }
 
-  private func plan(for configuration: SelectAlbumIntent, in context: Context) -> Plan {
-    let candidates = schedule(for: configuration, in: context, count: Self.maxEntries)
+  private func plan(
+    for configuration: SelectAlbumIntent, in context: Context, startedAt: Date
+  ) -> Plan {
+    let candidates = schedule(
+      for: configuration, in: context, startedAt: startedAt, count: Self.maxEntries)
     guard let first = candidates.first, first.fileName != nil else {
       return Plan(entries: candidates, archiveBytes: 0)
     }
@@ -577,7 +622,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
   }
 
   private func schedule(
-    for configuration: SelectAlbumIntent, in context: Context, count wanted: Int
+    for configuration: SelectAlbumIntent, in context: Context, startedAt: Date, count wanted: Int
   ) -> [PhotoEntry] {
     let settings = FrameStore.settings()
     let frame = Self.frame(in: context)
@@ -595,13 +640,16 @@ struct PhotoProvider: AppIntentTimelineProvider {
 
     let minutes = max(Self.minimumIntervalMinutes, settings.refreshMinutes)
     let interval = TimeInterval(minutes * 60)
-    // what: anchoring to absolute time keeps a reload from restarting the rotation
-    let slot = (Date().timeIntervalSince1970 / interval).rounded(.down)
-    let slotStart = Date(timeIntervalSince1970: slot * interval)
+    let now = Date()
+    let offset = TimeInterval(TimeZone.current.secondsFromGMT(for: now))
+    let slot = ((now.timeIntervalSince1970 + offset) / interval).rounded(.down)
+    let slotStart = Date(timeIntervalSince1970: slot * interval - offset)
+    // what: counting slots from when this widget started keeps a reload from restarting the rotation
+    let startSlot = ((startedAt.timeIntervalSince1970 + offset) / interval).rounded(.down)
 
     let useShuffle = configuration.shuffle
     let total = album.photos.count
-    let firstSlot = Int(slot)
+    let firstSlot = max(0, Int(slot - startSlot))
     var orders: [Int: [String]] = [:]
     var built: [PhotoEntry] = []
     built.reserveCapacity(wanted)

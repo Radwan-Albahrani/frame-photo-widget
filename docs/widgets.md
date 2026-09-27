@@ -177,7 +177,7 @@ rendering each one at its date, with the app terminated and the extension not ev
 in Frame's rotation path needs the app to be alive:
 
 - `PhotoProvider.entries(for:)` builds `maxEntries(for:)` entries — 24, or 16 on extra large —
-  spaced by the clamped `refreshMinutes`, each anchored to an absolute clock slot. At hourly that
+  spaced by the clamped `refreshMinutes`, each on a clock slot counted from the widget's start. At hourly that
   is a full day handed to iOS in one go; at the 5-minute floor it is two hours.
 - Each entry holds only a **file name**, so the entry list itself is a few KB.
 - When the last entry is reached, the `.atEnd` policy makes WidgetKit ask the extension for a fresh
@@ -299,11 +299,34 @@ decode: about 22 MB for a 1600 px source decoded to 1049 × 1399, the same wheth
 `snapshot(for:in:)` builds only the first entry and measures nothing. It used to run the whole
 48-entry budget pass to return one entry.
 
-A big album already plays through whole before it reshuffles. Entries map to absolute clock slots:
-the slot number divided by the album size gives the pass, and the remainder gives the position in
-that pass's order. A timeline of 33 or 48 entries is therefore one batch of a longer pass, and the
-next timeline resumes it where the clock says, with the same shuffle seed, until every photo has
-been shown.
+A big album plays through whole before it reshuffles, in batches. Slots are counted from the
+widget's `startedAt` (below): the slot count divided by the album size gives the pass, and the
+remainder gives the position in that pass's order. At hourly, 133 photos is a 133-hour pass and a
+timeline holds 21 to 48 of those hours, so each timeline is one batch and the next resumes where the
+clock says, with the same shuffle seed, until every photo has been shown. If iOS asks for the next
+batch late, the last photo stays up in the meantime and the photos for the missed slots are skipped
+for that pass. Counting photos shown instead of time would avoid that, but it cannot resume
+correctly after a mid-batch `reloadAllTimelines`, which happens every time the library changes.
+
+### Changes land on the local clock (1.0.2)
+
+The start time decides WHICH photo comes first, never WHEN photos change. Slot boundaries are
+`floor((now + utcOffset) / interval) × interval − utcOffset`, so hourly changes on the hour and a
+widget placed at 10:37 shows photo 1 until 11:00. Adding the offset matters for the two longer
+choices: counted from UTC, "every 6 hours" in Riyadh (UTC+3) changed at 3, 9, 15 and 21 and
+"daily" at 3 AM. Now they land at 0, 6, 12 and 18 and at midnight. Every interval offered divides
+a day, so the boundaries repeat the same way each day. On a daylight-saving change, one slot is an
+hour long or short until the next timeline, which recomputes with the new offset.
+
+### A new widget starts at the album's first photo (1.0.2)
+
+Slots used to be counted from 1970, so "in album order" started wherever `hoursSinceEpoch mod
+albumSize` landed: photo 43 of 133 for a widget placed at 22:00 on 2026-09-27. Each configuration's
+status record now carries `startedAt`, written the first time that configuration builds a timeline
+and read back on every later one (`FrameStore.startedAt(key:)`). A new configuration (a new widget,
+or any change in its edit sheet) has no record, so it starts at photo 1 on the current slot.
+
+
 
 ## Rotation is entries, not reloads
 
@@ -349,12 +372,25 @@ load-bearing:
 2. **`intervalMinutes` is measured, not recomputed.** It is `built[1].date - built[0].date`, so a
    change to the spacing rule cannot desync the report from the timeline.
 3. **Expiry belongs on the READ path.** Records are dropped by the app after 7 days, and dropped
-   entirely when `placedWidgetCount()` is 0. Pruning on write cannot work: remove the last widget
-   and nothing ever writes again, so the row would be immortal and the screen would report a
-   ghost widget as "past its schedule". Reading is also not memory-bound, unlike the extension.
-4. **The key is the whole configuration** — `"<family>|<albumId>|<groupId>|<shuffle>"`. Keying on
-   family and album alone let two same-size widgets on one album overwrite each other, which hid
-   the per-widget shuffle switch: the one thing the widget edit sheet controls.
+   entirely when `placedWidgetCount()` is 0. Pruning on write cannot be the only rule: remove the
+   last widget and nothing ever writes again, so the row would be immortal and the screen would
+   report a ghost widget as "past its schedule". Reading is also not memory-bound, unlike the
+   extension.
+4. **The key is the whole configuration**, as chosen in the edit sheet:
+   `"<family>|<albumId>|<groupId>|<shuffle>"` (`PhotoProvider.statusKey`, with the No group and
+   Whole group choices mapped to empty). Keying on family and album alone let two same-size widgets
+   on one album overwrite each other, which hid the per-widget shuffle switch: the one thing the
+   widget edit sheet controls. Before 1.0.2 the album part was the RESOLVED album, which cannot be
+   derived from a placed widget's configuration, so stale keys could not be matched.
+5. **A write also prunes configurations that are no longer placed.** Resizing a widget or toggling
+   shuffle makes a new key, and the old record used to linger for the full 7 days: 15 records
+   "reporting" for 13 placed widgets. `timeline(for:in:)` now reads
+   `WidgetCenter.currentConfigurations()`, rebuilds each placed widget's key from
+   `widgetConfigurationIntent(of:)`, and keeps only those. It prunes only when its own key is in
+   that list, so an empty or partial answer from iOS can never wipe good records. Records are read
+   and written under one lock, since several families build their timelines at once. Two widgets
+   with identical configurations share one record, so Reporting can be lower than On your Home
+   Screen, never higher.
 
 Every outcome is recorded, including failure. A widget with no album or an empty album writes a
 record with `state` set to `noAlbum` or `noPhotos`, so Diagnostics says "Needs an album" instead
@@ -415,6 +451,6 @@ iOS asking for anything:
   defers that request to a timestamp, which iOS is free to honour late on a device where the app is
   never launched.
 
-Entries stay anchored to absolute clock slots (`slotStart`), so a reload mid-timeline resumes at the
-photo the wall clock implies rather than restarting the sequence.
+Entries stay on clock slots counted from the widget's `startedAt`, so a reload mid-timeline resumes
+at the photo the clock implies rather than restarting the sequence.
 
