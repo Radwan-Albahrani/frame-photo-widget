@@ -295,9 +295,19 @@ struct AlbumEntity: AppEntity {
 
   static var typeDisplayRepresentation: TypeDisplayRepresentation = "Album"
   static var defaultQuery = AlbumQuery()
+  static let wholeGroupId = "frame.wholeGroup"
+
+  static func wholeGroup(photoCount: Int) -> AlbumEntity {
+    AlbumEntity(id: wholeGroupId, name: "Whole group", count: photoCount, groupName: nil)
+  }
+
+  var chosenAlbumId: String? { id == Self.wholeGroupId ? nil : id }
 
   var displayRepresentation: DisplayRepresentation {
     let photos = count == 1 ? "1 photo" : "\(count) photos"
+    if id == Self.wholeGroupId {
+      return DisplayRepresentation(title: "\(name)", subtitle: "Every album in the group · \(photos)")
+    }
     guard let groupName, !groupName.isEmpty else {
       return DisplayRepresentation(title: "\(name)", subtitle: "\(photos)")
     }
@@ -318,17 +328,23 @@ struct AlbumQuery: EntityQuery {
 
   func entities(for identifiers: [String]) async throws -> [AlbumEntity] {
     let groups = FrameStore.groups()
-    return FrameStore.summaries()
+    let albums = FrameStore.summaries()
       .filter { identifiers.contains($0.id) }
       .map { entity($0, groups: groups) }
+    guard identifiers.contains(AlbumEntity.wholeGroupId) else { return albums }
+    return [AlbumEntity.wholeGroup(photoCount: 0)] + albums
   }
 
   func suggestedEntities() async throws -> [AlbumEntity] {
     let groups = FrameStore.groups()
-    let groupId = selection?.group.id
-    return FrameStore.summaries()
-      .filter { groupId == nil || $0.groupId == groupId }
+    guard let groupId = selection?.group.chosenGroupId else {
+      return FrameStore.summaries().map { entity($0, groups: groups) }
+    }
+    let members = FrameStore.summaries()
+      .filter { $0.groupId == groupId }
       .map { entity($0, groups: groups) }
+    let photos = members.reduce(0) { $0 + $1.count }
+    return [AlbumEntity.wholeGroup(photoCount: photos)] + members
   }
 
   func defaultResult() async -> AlbumEntity? {
@@ -344,8 +360,15 @@ struct GroupEntity: AppEntity {
 
   static var typeDisplayRepresentation: TypeDisplayRepresentation = "Group"
   static var defaultQuery = GroupQuery()
+  static let noGroupId = "frame.noGroup"
+  static let noGroup = GroupEntity(id: noGroupId, name: "No group", albumCount: 0, photoCount: 0)
+
+  var chosenGroupId: String? { id == Self.noGroupId ? nil : id }
 
   var displayRepresentation: DisplayRepresentation {
+    if id == Self.noGroupId {
+      return DisplayRepresentation(title: "\(name)", subtitle: "Pick from every album")
+    }
     let albums = albumCount == 1 ? "1 album" : "\(albumCount) albums"
     let photos = photoCount == 1 ? "1 photo" : "\(photoCount) photos"
     return DisplayRepresentation(title: "\(name)", subtitle: "\(albums) · \(photos)")
@@ -366,11 +389,11 @@ struct GroupQuery: EntityQuery {
   }
 
   func entities(for identifiers: [String]) async throws -> [GroupEntity] {
-    all().filter { identifiers.contains($0.id) }
+    ([GroupEntity.noGroup] + all()).filter { identifiers.contains($0.id) }
   }
 
   func suggestedEntities() async throws -> [GroupEntity] {
-    all()
+    [GroupEntity.noGroup] + all()
   }
 }
 
@@ -395,6 +418,9 @@ struct SelectAlbumIntent: WidgetConfigurationIntent {
       \.$shuffle
     }
   }
+
+  var groupId: String? { group?.chosenGroupId }
+  var albumId: String? { album?.chosenAlbumId }
 
   init() {}
   init(group: GroupEntity?, album: AlbumEntity?, shuffle: Bool) {
@@ -516,7 +542,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
     guard let first = built.first else { return }
     let name = Self.familyName(family)
     let albumId = first.albumId ?? ""
-    let groupId = configuration.group?.id ?? ""
+    let groupId = configuration.groupId ?? ""
     // what: the spacing actually used, so a change to the interval rule cannot desync the report
     let spacing =
       built.count > 1
@@ -527,7 +553,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
         "family": name,
         "albumId": albumId,
         "albumName": first.albumName,
-        "groupName": configuration.group?.name ?? "",
+        "groupName": configuration.groupId == nil ? "" : configuration.group?.name ?? "",
         "shuffle": configuration.shuffle,
         "state": first.total == 0 ? (first.albumId == nil ? "noAlbum" : "noPhotos") : "ok",
         "photos": first.total,
@@ -556,14 +582,13 @@ struct PhotoProvider: AppIntentTimelineProvider {
     let settings = FrameStore.settings()
     let frame = Self.frame(in: context)
     guard
-      let album = FrameStore.resolve(
-        albumId: configuration.album?.id, groupId: configuration.group?.id),
+      let album = FrameStore.resolve(albumId: configuration.albumId, groupId: configuration.groupId),
       !album.photos.isEmpty
     else {
       return [
         PhotoEntry(
-          date: Date(), fileName: nil, albumId: configuration.album?.id,
-          albumName: configuration.album?.name ?? "Frame",
+          date: Date(), fileName: nil, albumId: configuration.albumId,
+          albumName: configuration.albumId == nil ? "Frame" : configuration.album?.name ?? "Frame",
           position: 0, total: 0, settings: settings, frame: frame)
       ]
     }

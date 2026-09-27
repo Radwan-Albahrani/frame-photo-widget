@@ -132,6 +132,16 @@ The widget's configuration has two entity parameters:
   its group name. This exists because the flat album list becomes unusable once someone has a few
   dozen albums.
 
+**An optional entity parameter can never be cleared.** The widget edit sheet has no "none" row, so
+before 1.0.2 a widget that had picked a group kept it until the widget was removed, and once an
+album was picked the group could never play whole again. Both pickers therefore carry an explicit
+choice that means "nothing": **No group** heads the group list (`GroupEntity.noGroupId`), and
+**Whole group** heads the album list whenever a group is chosen (`AlbumEntity.wholeGroupId`, the
+default in that case). Read `SelectAlbumIntent.groupId` and `.albumId`, never `group?.id` or
+`album?.id`: those two map the sentinels back to nil before anything is resolved or recorded.
+`entities(for:)` must return the sentinels too, or iOS drops the saved choice when it re-resolves
+the configuration.
+
 `FrameStore.resolve(albumId:groupId:)` decides what actually plays, in this order:
 
 1. a specific album, if one is chosen;

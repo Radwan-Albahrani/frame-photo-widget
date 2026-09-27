@@ -9,7 +9,7 @@
 # so generate a separate App Manager key for local shipping.
 #
 # Release notes come from release-notes/<version>.json when it exists (write it with the
-# release-notes skill: /release-notes). Shape: {"en-US":{"whatsNew":"…","promotionalText":"…"}, …}.
+# release-notes-app skill: /release-notes-app). Shape: {"en-US":{"whatsNew":"…","promotionalText":"…"}, …}.
 # Anything not supplied per locale is carried forward from the previous release.
 #
 # Usage: bash scripts/ship-ios.sh [flags]
@@ -219,7 +219,7 @@ else
   note "$VERSION already exists ($EXISTING_VERSION_ID), leaving its metadata alone"
 fi
 
-# Per-locale notes written by the release-notes skill win over the flags and the copy.
+# Per-locale notes written by the release-notes-app skill win over the flags and the copy.
 [ -z "$NOTES_FILE" ] && [ -f "release-notes/$VERSION.json" ] && NOTES_FILE="release-notes/$VERSION.json"
 if [ -n "$NOTES_FILE" ]; then
   [ -f "$NOTES_FILE" ] || { echo "ship-ios: $NOTES_FILE not found." >&2; exit 1; }
