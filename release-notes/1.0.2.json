@@ -1,10 +1,10 @@
 {
   "en-US": {
-    "whatsNew": "Widgets now load albums of any size.\n\n• Fixed widgets staying blank on albums with lots of photos\n• Big albums play every photo once before the order starts again\n• Widgets with big libraries load faster",
+    "whatsNew": "Widgets now work with albums of any size, and a widget's group can be cleared again.\n\n• Fixed widgets staying blank on albums with lots of photos\n• Choose No group to take a widget off its group\n• Choose Whole group to show every album in a group again",
     "promotionalText": "Free forever. No ads, no subscriptions, no paywall, no limits. Unlimited albums, a different album on every widget, and photos that change on their own all day."
   },
   "en-GB": {
-    "whatsNew": "Widgets now load albums of any size.\n\n• Fixed widgets staying blank on albums with lots of photos\n• Big albums play every photo once before the order starts again\n• Widgets with big libraries load faster",
+    "whatsNew": "Widgets now work with albums of any size, and a widget's group can be cleared again.\n\n• Fixed widgets staying blank on albums with lots of photos\n• Choose No group to take a widget off its group\n• Choose Whole group to show every album in a group again",
     "promotionalText": "Free forever. No ads, no subscriptions, no paywall, no limits. Unlimited albums, a different album on every widget, and photos that change on their own all day."
   }
 }
