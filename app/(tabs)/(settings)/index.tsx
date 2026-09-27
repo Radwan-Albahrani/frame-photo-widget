@@ -24,8 +24,9 @@ import { WidgetService } from "@backend/api/widget/widget.service";
 import { DuplicatesService } from "@backend/api/duplicates/duplicates.service";
 import { PhotosService } from "@backend/api/photos/photos.service";
 import { reportFailure } from "@backend/core/log/logger";
-import { SUPPORT_EMAIL, SUPPORT_URL, SUPPORT_X_HANDLE } from "@const/identifiers";
+import { SUPPORT_URL, SUPPORT_X_HANDLE } from "@const/identifiers";
 import { usedBytes } from "@native/photoStore";
+import { composeSupportEmail } from "@native/supportEmail";
 import { countLabel, formatBytes } from "@ui/format";
 
 const INTERVALS = [
@@ -50,23 +51,23 @@ const PRETICK_FOOTER: Record<PretickMode, string> = {
     "Every photo anywhere in Frame shows up ticked, so you can see what you have never added. A photo already in one album cannot be added to another this way.",
 };
 
+function openLink(url: string) {
+  Linking.openURL(url).catch((error) => reportFailure({ op: "settings.openLink", url }, error));
+}
+
 const CONTACT = [
-  { label: "Help and questions", systemImage: "questionmark.circle", url: SUPPORT_URL },
   {
-    label: "Email me",
-    systemImage: "envelope",
-    url: `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Frame feedback")}`,
+    label: "Help and questions",
+    systemImage: "questionmark.circle",
+    open: () => openLink(SUPPORT_URL),
   },
+  { label: "Email me", systemImage: "envelope", open: () => void composeSupportEmail() },
   {
     label: `@${SUPPORT_X_HANDLE} on X`,
     systemImage: "at",
-    url: `https://x.com/${SUPPORT_X_HANDLE}`,
+    open: () => openLink(`https://x.com/${SUPPORT_X_HANDLE}`),
   },
 ] as const;
-
-function openContact(url: string) {
-  Linking.openURL(url).catch((error) => reportFailure({ op: "settings.openContact", url }, error));
-}
 
 export default function SettingsScreen() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -279,10 +280,10 @@ export default function SettingsScreen() {
         >
           {CONTACT.map((contact) => (
             <NativeButton
-              key={contact.url}
+              key={contact.label}
               label={contact.label}
               systemImage={contact.systemImage}
-              onPress={() => openContact(contact.url)}
+              onPress={contact.open}
             />
           ))}
         </Section>
