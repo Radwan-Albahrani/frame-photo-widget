@@ -12,6 +12,7 @@ import { pickerStyle, tag } from "@expo/ui/swift-ui/modifiers";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
+import { Linking } from "react-native";
 import {
   DEFAULT_SETTINGS,
   SettingsService,
@@ -23,6 +24,7 @@ import { WidgetService } from "@backend/api/widget/widget.service";
 import { DuplicatesService } from "@backend/api/duplicates/duplicates.service";
 import { PhotosService } from "@backend/api/photos/photos.service";
 import { reportFailure } from "@backend/core/log/logger";
+import { SUPPORT_EMAIL, SUPPORT_URL, SUPPORT_X_HANDLE } from "@const/identifiers";
 import { usedBytes } from "@native/photoStore";
 import { countLabel, formatBytes } from "@ui/format";
 
@@ -47,6 +49,24 @@ const PRETICK_FOOTER: Record<PretickMode, string> = {
   frame:
     "Every photo anywhere in Frame shows up ticked, so you can see what you have never added. A photo already in one album cannot be added to another this way.",
 };
+
+const CONTACT = [
+  { label: "Help and questions", systemImage: "questionmark.circle", url: SUPPORT_URL },
+  {
+    label: "Email me",
+    systemImage: "envelope",
+    url: `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Frame feedback")}`,
+  },
+  {
+    label: `@${SUPPORT_X_HANDLE} on X`,
+    systemImage: "at",
+    url: `https://x.com/${SUPPORT_X_HANDLE}`,
+  },
+] as const;
+
+function openContact(url: string) {
+  Linking.openURL(url).catch((error) => reportFailure({ op: "settings.openContact", url }, error));
+}
 
 export default function SettingsScreen() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -246,6 +266,25 @@ export default function SettingsScreen() {
           <LabeledContent label="Photo copies">
             <NativeText>{formatBytes(bytes)}</NativeText>
           </LabeledContent>
+        </Section>
+
+        <Section
+          title="Contact"
+          footer={
+            <NativeText>
+              Found a bug or want something added? Frame is made by one person, and every message
+              gets read.
+            </NativeText>
+          }
+        >
+          {CONTACT.map((contact) => (
+            <NativeButton
+              key={contact.url}
+              label={contact.label}
+              systemImage={contact.systemImage}
+              onPress={() => openContact(contact.url)}
+            />
+          ))}
         </Section>
 
         <Section

@@ -17,3 +17,9 @@ export const WIDGET_KIND_PHOTO = "FramePhotoWidget";
 export const WIDGET_THUMBNAIL_MAX_PIXELS = 1600;
 
 export const WIDGET_THUMBNAIL_QUALITY = 0.85;
+
+export const SUPPORT_URL = "https://frame.kaset.workers.dev/support";
+
+export const SUPPORT_EMAIL = "radwan.albahrani@gmail.com";
+
+export const SUPPORT_X_HANDLE = "radwanalbahrani";
