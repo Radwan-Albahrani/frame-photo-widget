@@ -22,4 +22,4 @@ export const SUPPORT_URL = "https://frame.kaset.workers.dev/support";
 
 export const SUPPORT_EMAIL = "radwan.albahrani@gmail.com";
 
-export const SUPPORT_X_HANDLE = "radwanalbahrani";
+export const SUPPORT_X_HANDLE = "RadwanAlbahrani";
