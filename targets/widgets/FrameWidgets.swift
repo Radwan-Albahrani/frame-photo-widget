@@ -97,37 +97,67 @@ enum FrameStore {
     containerURL()?.appendingPathComponent(databaseName).path
   }
 
-  static func summaries() -> [AlbumSummary] {
-    LibraryDatabase.read(path: databasePath()) { $0.summaries() } ?? []
+  static func summaries() -> [AlbumSummary]? {
+    try? LibraryDatabase.read(path: databasePath()) { $0.summaries() }.get()
   }
 
-  static func groups() -> [PhotoGroup] {
-    LibraryDatabase.read(path: databasePath()) { $0.groups() } ?? []
+  static func groups() -> [PhotoGroup]? {
+    try? LibraryDatabase.read(path: databasePath()) { $0.groups() }.get()
   }
 
-  static func resolve(albumId: String?, groupId: String?) -> Album? {
-    LibraryDatabase.read(path: databasePath()) { $0.resolve(albumId: albumId, groupId: groupId) } ?? nil
+  static func resolve(albumId: String?, groupId: String?) -> Result<Album?, LibraryReadError> {
+    LibraryDatabase.read(path: databasePath()) { $0.resolve(albumId: albumId, groupId: groupId) }
   }
 }
 
-// what: reads only the shown album or folder, so memory stays flat as the library grows (docs/widgets.md)
-struct LibraryDatabase {
-  private let handle: OpaquePointer
+struct LibraryReadError: Error {
+  let code: Int32
+}
 
-  static func read<Result>(path: String?, _ body: (LibraryDatabase) -> Result) -> Result? {
-    guard let path, FileManager.default.fileExists(atPath: path) else { return nil }
+// what: reads only the shown album or folder, so memory stays flat as the library grows (docs/widgets.md)
+final class LibraryDatabase {
+  // what: widgets reloading together race on WAL recovery; 32% rendered the wrong album without it (docs/widgets.md)
+  private static let busyTimeoutMilliseconds: Int32 = 2000
+
+  private let handle: OpaquePointer
+  private var failureCode: Int32?
+
+  private init(handle: OpaquePointer) { self.handle = handle }
+
+  static func read<Value>(
+    path: String?, _ body: (LibraryDatabase) -> Value
+  ) -> Result<Value, LibraryReadError> {
+    guard let path, FileManager.default.fileExists(atPath: path) else {
+      return .failure(LibraryReadError(code: SQLITE_CANTOPEN))
+    }
+    let result = read(path: path, flags: SQLITE_OPEN_READONLY, body)
+    guard case .failure(let error) = result, error.code == SQLITE_CANTOPEN else { return result }
+    // what: a clean app close deletes -wal/-shm, and only a writable open recreates them (docs/widgets.md)
+    return read(path: path, flags: SQLITE_OPEN_READWRITE, body)
+  }
+
+  private static func read<Value>(
+    path: String, flags: Int32, _ body: (LibraryDatabase) -> Value
+  ) -> Result<Value, LibraryReadError> {
     var handle: OpaquePointer?
-    guard sqlite3_open_v2(path, &handle, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let handle else {
+    let opened = sqlite3_open_v2(path, &handle, flags, nil)
+    guard opened == SQLITE_OK, let handle else {
       sqlite3_close(handle)
-      return nil
+      return .failure(LibraryReadError(code: opened))
     }
     defer { sqlite3_close(handle) }
-    return body(LibraryDatabase(handle: handle))
+    sqlite3_busy_timeout(handle, busyTimeoutMilliseconds)
+    let database = LibraryDatabase(handle: handle)
+    let value = body(database)
+    if let code = database.failureCode { return .failure(LibraryReadError(code: code)) }
+    return .success(value)
   }
 
   private func rows(_ sql: String, _ bindings: [String] = [], _ row: (OpaquePointer) -> Void) {
     var statement: OpaquePointer?
-    guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
+    let prepared = sqlite3_prepare_v2(handle, sql, -1, &statement, nil)
+    guard prepared == SQLITE_OK, let statement else {
+      failureCode = failureCode ?? prepared
       return
     }
     defer { sqlite3_finalize(statement) }
@@ -135,7 +165,12 @@ struct LibraryDatabase {
     for (index, value) in bindings.enumerated() {
       sqlite3_bind_text(statement, Int32(index + 1), value, -1, transient)
     }
-    while sqlite3_step(statement) == SQLITE_ROW { row(statement) }
+    var stepped = sqlite3_step(statement)
+    while stepped == SQLITE_ROW {
+      row(statement)
+      stepped = sqlite3_step(statement)
+    }
+    if stepped != SQLITE_DONE { failureCode = failureCode ?? stepped }
   }
 
   private static func text(_ statement: OpaquePointer, _ column: Int32) -> String? {
@@ -228,7 +263,7 @@ struct LibraryDatabase {
           photos: photos(inAlbums: "a.group_id IN (\(placeholders))", ids))
       }
     }
-    guard let first = album(where: "1 = 1", []) else { return nil }
+    guard albumId == nil, groupId == nil, let first = album(where: "1 = 1", []) else { return nil }
     return Album(
       id: first.id, name: first.name, groupId: first.groupId,
       photos: photos(inAlbums: "a.id = ?", [first.id]))
@@ -344,8 +379,10 @@ struct AlbumQuery: EntityQuery {
   }
 
   func entities(for identifiers: [String]) async throws -> [AlbumEntity] {
-    let groups = FrameStore.groups()
-    let albums = FrameStore.summaries()
+    guard let summaries = FrameStore.summaries(), let groups = FrameStore.groups() else {
+      return identifiers.map { AlbumEntity(id: $0, name: "", count: 0, groupName: nil) }
+    }
+    let albums = summaries
       .filter { identifiers.contains($0.id) }
       .map { entity($0, groups: groups) }
     guard identifiers.contains(AlbumEntity.wholeGroupId) else { return albums }
@@ -353,11 +390,12 @@ struct AlbumQuery: EntityQuery {
   }
 
   func suggestedEntities() async throws -> [AlbumEntity] {
-    let groups = FrameStore.groups()
+    let groups = FrameStore.groups() ?? []
+    let summaries = FrameStore.summaries() ?? []
     guard let groupId = selection?.group.chosenGroupId else {
-      return FrameStore.summaries().map { entity($0, groups: groups) }
+      return summaries.map { entity($0, groups: groups) }
     }
-    let members = FrameStore.summaries()
+    let members = summaries
       .filter { $0.groupId == groupId }
       .map { entity($0, groups: groups) }
     let photos = members.reduce(0) { $0 + $1.count }
@@ -393,9 +431,9 @@ struct GroupEntity: AppEntity {
 }
 
 struct GroupQuery: EntityQuery {
-  private func all() -> [GroupEntity] {
-    let albums = FrameStore.summaries()
-    return FrameStore.groups().map { group in
+  private func all() -> [GroupEntity]? {
+    guard let albums = FrameStore.summaries(), let groups = FrameStore.groups() else { return nil }
+    return groups.map { group in
       let members = albums.filter { $0.groupId == group.id }
       return GroupEntity(
         id: group.id,
@@ -406,11 +444,14 @@ struct GroupQuery: EntityQuery {
   }
 
   func entities(for identifiers: [String]) async throws -> [GroupEntity] {
-    ([GroupEntity.noGroup] + all()).filter { identifiers.contains($0.id) }
+    guard let groups = all() else {
+      return identifiers.map { GroupEntity(id: $0, name: "", albumCount: 0, photoCount: 0) }
+    }
+    return ([GroupEntity.noGroup] + groups).filter { identifiers.contains($0.id) }
   }
 
   func suggestedEntities() async throws -> [GroupEntity] {
-    [GroupEntity.noGroup] + all()
+    [GroupEntity.noGroup] + (all() ?? [])
   }
 }
 
@@ -458,6 +499,7 @@ struct PhotoEntry: TimelineEntry {
   let total: Int
   let settings: WidgetSettings
   let frame: CGSize
+  var readError: Int32? = nil
 
   // what: tapping a widget opens the album it is showing, so its source is never a guess
   var deepLink: URL? {
@@ -473,6 +515,7 @@ struct PhotoProvider: AppIntentTimelineProvider {
   // what: chronod rejected a timeline archive at 10 MiB on the simulator; the device drew the line higher
   private static let archiveBudgetBytes = 6 * 1024 * 1024
   private static let maxEntries = 48
+  private static let readRetrySeconds: TimeInterval = 15 * 60
 
   struct Plan {
     let entries: [PhotoEntry]
@@ -513,16 +556,9 @@ struct PhotoProvider: AppIntentTimelineProvider {
   }
 
   func placeholder(in context: Context) -> PhotoEntry {
-    let album = FrameStore.resolve(albumId: nil, groupId: nil)
-    return PhotoEntry(
-      date: Date(),
-      fileName: album?.photos.first,
-      albumId: album?.id,
-      albumName: album?.name ?? "Frame",
-      position: 0,
-      total: album?.photos.count ?? 0,
-      settings: FrameStore.settings(),
-      frame: Self.frame(in: context))
+    PhotoEntry(
+      date: Date(), fileName: nil, albumId: nil, albumName: "Frame", position: 0, total: 0,
+      settings: FrameStore.settings(), frame: Self.frame(in: context))
   }
 
   func snapshot(for configuration: SelectAlbumIntent, in context: Context) async -> PhotoEntry {
@@ -543,6 +579,10 @@ struct PhotoProvider: AppIntentTimelineProvider {
     recordStatus(
       plan, configuration: configuration, family: context.family, key: key, startedAt: startedAt,
       placedKeys: await Self.placedKeys())
+    if built.first?.readError != nil {
+      return Timeline(
+        entries: built, policy: .after(Date().addingTimeInterval(Self.readRetrySeconds)))
+    }
     guard !built.isEmpty else {
       return Timeline(
         entries: [placeholder(in: context)], policy: .after(Date().addingTimeInterval(3600)))
@@ -596,7 +636,9 @@ struct PhotoProvider: AppIntentTimelineProvider {
         "albumName": first.albumName,
         "groupName": configuration.groupId == nil ? "" : configuration.group?.name ?? "",
         "shuffle": configuration.shuffle,
-        "state": first.total == 0 ? (first.albumId == nil ? "noAlbum" : "noPhotos") : "ok",
+        "state": first.readError != nil
+          ? "readError" : first.total == 0 ? (first.albumId == nil ? "noAlbum" : "noPhotos") : "ok",
+        "sqliteCode": first.readError ?? 0,
         "photos": first.total,
         "entries": built.count,
         "frameWidth": Int(first.frame.width),
@@ -626,15 +668,15 @@ struct PhotoProvider: AppIntentTimelineProvider {
   ) -> [PhotoEntry] {
     let settings = FrameStore.settings()
     let frame = Self.frame(in: context)
-    guard
-      let album = FrameStore.resolve(albumId: configuration.albumId, groupId: configuration.groupId),
-      !album.photos.isEmpty
-    else {
+    let resolved = FrameStore.resolve(albumId: configuration.albumId, groupId: configuration.groupId)
+    guard case .success(let found) = resolved, let album = found, !album.photos.isEmpty else {
+      var readError: Int32?
+      if case .failure(let error) = resolved { readError = error.code }
       return [
         PhotoEntry(
           date: Date(), fileName: nil, albumId: configuration.albumId,
           albumName: configuration.albumId == nil ? "Frame" : configuration.album?.name ?? "Frame",
-          position: 0, total: 0, settings: settings, frame: frame)
+          position: 0, total: 0, settings: settings, frame: frame, readError: readError)
       ]
     }
 
@@ -772,7 +814,9 @@ struct PhotoWidgetView: View {
   }
 
   @ViewBuilder private var content: some View {
-    if entry.fileName == nil {
+    if entry.readError != nil {
+      Color.clear
+    } else if entry.fileName == nil {
       EmptyFrameView()
     } else if overlayText {
       VStack(alignment: .leading, spacing: 0) {

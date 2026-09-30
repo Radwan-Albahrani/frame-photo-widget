@@ -90,7 +90,38 @@ no sync step, and no setting: this is the only data path.
 
 `import SQLite3` needs no extra linking: the iOS SDK modulemap carries `link "sqlite3"`, so it
 autolinks into the extension. A read-only connection works against the app's WAL database with or
-without the app running.
+without the app running, given the three rules below.
+
+### A failed read must never become a different album (1.0.3)
+
+Before 1.0.3 a widget configured to album A could show album B for a day or more after the app had
+gone unopened, until the app was launched. The chain:
+
+1. With the app process dead, the first connection to open `frame.db` rebuilds the WAL index in
+   `-shm`. Every widget's timeline runs out on the same clock slot, so the extension opens several
+   read-only connections at once, and the ones that lose that race get `SQLITE_BUSY`.
+2. `rows()` read `BUSY` as "no rows". Either `AlbumQuery.entities(for:)` came back empty, so iOS
+   dropped the saved album and the intent arrived with `album == nil`, or the `id = ?` lookup in
+   `resolve` came back empty. Both fell through to "first album".
+3. That timeline was `.atEnd` with up to 48 entries, so album B stayed until the app's launch-time
+   `reloadAllTimelines()` rebuilt it against a healthy database.
+
+Measured with the widget's exact `LibraryDatabase` code on a WAL left behind by a killed writer:
+100 cold starts x 8 concurrent widgets rendered the wrong album 259 times out of 800. With the
+rules below, 0 out of 5,600 across 8, 16 and two-process runs, and while the app was writing. With
+an app connection held open the race never happens, which is why it needs the app to be closed
+for a while.
+
+- **`sqlite3_busy_timeout`** on every widget connection, and `PRAGMA busy_timeout` on the app's.
+- **A read error is a failure, not an empty result.** `LibraryDatabase.read` returns
+  `.failure(LibraryReadError)` when any statement fails. `entities(for:)` then hands back
+  stand-ins for the requested ids, so iOS keeps the saved choice. The timeline shows a neutral
+  tile, retries in 15 minutes, and records `state: readError` with the `sqliteCode` in
+  `widgetStatus`. The placeholder reads nothing.
+- **A read-only open that gets `SQLITE_CANTOPEN` retries once read-write** (never with `CREATE`).
+  op-sqlite closes the database cleanly when the RN runtime is torn down, and the last connection
+  closing deletes `-wal` and `-shm`. A read-only connection cannot recreate them, so without this
+  every widget read fails until the app runs again.
 
 ### Why not a mirrored JSON snapshot (benchmarked 2026-09-24)
 
@@ -146,7 +177,9 @@ the configuration.
 
 1. a specific album, if one is chosen;
 2. otherwise the whole group, flattened into one rotating set across all its albums;
-3. otherwise the first album.
+3. the first album, but ONLY when neither an album nor a group was chosen.
+
+A chosen album or group that is not found shows "Pick an album"; it never borrows another album.
 
 Groups come from `album_groups` plus `albums.group_id`; a folder's branch is walked in memory from
 the (small) groups table, then its photos are read in one indexed query.

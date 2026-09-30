@@ -52,6 +52,7 @@ const STATUS: Record<Health, { title: string; detail: string }> = {
 const WIDGET_STATE: Record<string, string> = {
   noAlbum: "No album chosen",
   noPhotos: "Album has no photos",
+  readError: "Library could not be read, retrying",
 };
 
 function WidgetSection({ widget, now }: { widget: WidgetReport; now: number }) {

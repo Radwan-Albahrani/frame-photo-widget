@@ -19,6 +19,7 @@ export function databasePath(): string {
 export function migrate(): void {
   const sqlite = connection();
   sqlite.executeSync("PRAGMA journal_mode = WAL");
+  sqlite.executeSync("PRAGMA busy_timeout = 5000");
   sqlite.executeSync("PRAGMA foreign_keys = ON");
   runMigrations({
     execute: (sql) => {

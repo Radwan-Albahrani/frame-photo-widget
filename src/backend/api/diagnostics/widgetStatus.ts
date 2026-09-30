@@ -10,7 +10,7 @@ const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 // what: measured; chronod rejects a timeline archive at exactly 10 MiB (docs/widgets.md)
 export const ARCHIVE_LIMIT_BYTES = 10 * 1024 * 1024;
 
-export type WidgetState = "ok" | "noAlbum" | "noPhotos";
+export type WidgetState = "ok" | "noAlbum" | "noPhotos" | "readError";
 
 export interface WidgetReport {
   family: string;
