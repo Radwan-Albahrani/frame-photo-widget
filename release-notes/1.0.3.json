@@ -1,0 +1,10 @@
+{
+  "en-US": {
+    "whatsNew": "Widgets now stay on the album you picked, even after days without opening Frame.\n\n• Fixed a widget switching to a different album until Frame was opened\n• Fixed a widget asking you to pick an album it already had\n• If a widget cannot read your library for a moment, it tries again within 15 minutes instead of showing other photos",
+    "promotionalText": "Free forever. No ads, no subscriptions, no paywall, no limits. Unlimited albums, a different album on every widget, and photos that change on their own all day."
+  },
+  "en-GB": {
+    "whatsNew": "Widgets now stay on the album you picked, even after days without opening Frame.\n\n• Fixed a widget switching to a different album until Frame was opened\n• Fixed a widget asking you to pick an album it already had\n• If a widget cannot read your library for a moment, it tries again within 15 minutes instead of showing other photos",
+    "promotionalText": "Free forever. No ads, no subscriptions, no paywall, no limits. Unlimited albums, a different album on every widget, and photos that change on their own all day."
+  }
+}
