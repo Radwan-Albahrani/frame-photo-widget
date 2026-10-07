@@ -756,7 +756,6 @@ struct EmptyFrameView: View {
 
 struct PhotoWidgetView: View {
   @Environment(\.widgetFamily) private var family
-  @Environment(\.widgetRenderingMode) private var renderingMode
   let entry: PhotoEntry
 
   private var overlayText: Bool {
@@ -779,15 +778,14 @@ struct PhotoWidgetView: View {
 
   var body: some View {
     content
-      .containerBackground(for: .widget) { backdrop }
+      .containerBackground(for: .widget) { Color(white: 0.07) }
       .widgetURL(entry.deepLink)
   }
 
   // what: one decode reused for both layers, so `fit` costs no extra memory
-  @ViewBuilder private var backdrop: some View {
+  @ViewBuilder private var photo: some View {
     if let image = PhotoLoader.image(
-      fileName: entry.fileName, frame: entry.frame, fit: entry.settings.contentMode == .fit),
-      renderingMode == .fullColor
+      fileName: entry.fileName, frame: entry.frame, fit: entry.settings.contentMode == .fit)
     {
       if entry.settings.contentMode == .fit {
         ZStack {
@@ -808,8 +806,6 @@ struct PhotoWidgetView: View {
           .widgetAccentedRenderingMode(.fullColor)
           .aspectRatio(contentMode: .fill)
       }
-    } else {
-      Color(white: 0.07)
     }
   }
 
@@ -818,7 +814,19 @@ struct PhotoWidgetView: View {
       Color.clear
     } else if entry.fileName == nil {
       EmptyFrameView()
-    } else if overlayText {
+    } else {
+      ZStack {
+        Color.clear
+        photo
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .clipped()
+        caption
+      }
+    }
+  }
+
+  @ViewBuilder private var caption: some View {
+    if overlayText {
       VStack(alignment: .leading, spacing: 0) {
         Spacer(minLength: 0)
         VStack(alignment: .leading, spacing: 2) {

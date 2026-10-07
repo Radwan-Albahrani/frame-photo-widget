@@ -435,13 +435,22 @@ by the widget feature. `FramePhotoStore.placedWidgetCount()`
 (`WidgetCenter.currentConfigurations().count`) supplies the one fact the records cannot: how many
 widgets are actually on the Home Screen.
 
-## Tinted mode will eat your photos
+## Tinted and Clear Home Screens: the photo is content, never the background (1.0.4)
 
-Under the Home Screen's tinted ("transparent") rendering mode iOS desaturates everything to a single
-tint, which turns a photo into a flat silhouette. `.widgetAccentedRenderingMode(.fullColor)` applied
-**after** `.resizable()` keeps real colour. `PhotoWidgetView` also checks
-`@Environment(\.widgetRenderingMode)` and falls back to a solid background rather than rendering a
-washed-out photo under a text overlay that would then be unreadable.
+Under the Home Screen's Tinted and Clear styles iOS renders widgets in `.accented` mode. Two things
+happen there, and before 1.0.4 together they left every widget a blank tile while Diagnostics read
+"Rotating on schedule", because the timeline was built and archived perfectly well:
+
+1. **The system strips `.containerBackground` and puts its own glass in its place.** The photo used to
+   live in the container background, so in accented mode it was simply thrown away.
+2. `PhotoWidgetView` also checked `@Environment(\.widgetRenderingMode)` and drew a solid tile
+   whenever the mode was not `.fullColor`, on the theory that a tinted photo was worse than none.
+   With the title and date hidden that left nothing on screen at all.
+
+So the photo is drawn in the widget's **content**, filling the frame, and the container background is
+only a plain colour for the instant before the image lands. `.widgetAccentedRenderingMode(.fullColor)`
+applied **after** `.resizable()` keeps real colour in accented mode instead of the flat tinted
+silhouette. Reproduce by long-pressing the Home Screen → Edit → Customize → Tinted or Clear.
 
 `.contentMarginsDisabled()` is what lets a photo go edge to edge; without it iOS insets the content
 and you get a border.
