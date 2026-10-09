@@ -1,0 +1,49 @@
+name: Bug report
+description: Something in Frame or its widget is broken
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Please do not attach personal photos. Security issues go through private reporting, see SECURITY.md.
+  - type: input
+    id: device
+    attributes:
+      label: iPhone model and iOS version
+      placeholder: iPhone 16 Pro, iOS 26.1
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Frame version
+      placeholder: 1.0.4
+    validations:
+      required: true
+  - type: dropdown
+    id: widget
+    attributes:
+      label: Widget size, if a widget is involved
+      options: [Not widget related, Small, Medium, Large, Extra large]
+  - type: dropdown
+    id: style
+    attributes:
+      label: Home Screen style
+      options: [Default, Dark, Tinted, Clear]
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: For widget problems, add a screenshot of Settings → Diagnostics.

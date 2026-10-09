@@ -46,4 +46,5 @@ targets/*/generated.entitlements
 .agents
 .claude
 
-.asc/release/
+.asc/
+metadata/
