@@ -201,9 +201,9 @@ No ads. No subscriptions. No paywall. No limits. No tracking. No account.
 
 Changes from the current description: the free claim is moved into the opening sentence instead of paragraph two; a scannable "WHAT YOU GET" bullet block is added for users who never read prose; "network code" phrasing is kept because it is unusually credible; "collage" is nowhere in the copy, matching the keyword decision.
 
-### en-GB
+### Locales
 
-`metadata/app-info/en-GB.json` and `metadata/version/1.0.0/en-GB.json` currently mirror en-US. Apple indexes en-GB separately and it serves the UK, AU, NZ, IE and several other storefronts, so **apply the same four values there**. The copy needs no Britishisation (no US-only spellings are used). This is effectively a free doubling of indexed storefronts.
+The listing is en-US only. en-GB used to mirror en-US for its separate storefront index (UK, AU, NZ, IE); it was removed in 1.0.5 to keep one listing to maintain. Storefronts without their own locale fall back to en-US.
 
 ---
 
@@ -217,7 +217,7 @@ Changes from the current description: the free claim is moved into the opening s
 | promotionalText | `Free forever. No ads, no subscriptions, no paywall, no limits. Unlimited albums, a different album on every widget, and photos that change on their own all day.` | 160 | 170 |
 | description | see above | 1788 | 4000 |
 
-Apply to **en-US and en-GB**, app 6814411936, version 1.0.0.
+Apply to **en-US**, app 6814411936, version 1.0.0.
 
 Non-metadata items that matter as much as the copy:
 
