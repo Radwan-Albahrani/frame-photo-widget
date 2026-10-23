@@ -53,8 +53,7 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "18.0",
-            "enableSceneSupport": true
+            "deploymentTarget": "18.0"
           }
         }
       ],
@@ -67,7 +66,8 @@
           "backgroundColor": "#070708"
         }
       ],
-      "expo-mail-composer"
+      "expo-mail-composer",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

@@ -161,7 +161,7 @@ function ReorderableCell<T extends ReorderableItem>({
     })
     .onEnd(() => {
       const settled = order.value.indexOf(item.id);
-      const target = positionOf(settled < 0 ? 0 : settled, numColumns, cellSize, gap);
+      const target = positionOf(Math.max(settled, 0), numColumns, cellSize, gap);
       translateX.value = withSpring(target.x, SPRING);
       translateY.value = withSpring(target.y, SPRING);
     })

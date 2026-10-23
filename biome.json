@@ -47,12 +47,25 @@
       "indentWidth": 2
     }
   },
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
       "preset": "recommended",
       "complexity": {
         "noStaticOnlyClass": "off"
+      },
+      "correctness": {
+        "noReactNativeRawText": {
+          "level": "error",
+          "options": {
+            "skip": ["NativeText", "Stack.Screen.Title", "NativeTabs.Trigger.Label"]
+          }
+        }
       }
     }
   },
