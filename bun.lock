@@ -57,6 +57,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "react-native-screens@4.30.0": "patches/react-native-screens@4.30.0.patch",
+  },
   "overrides": {
     "react": "19.3.1",
     "react-dom": "19.3.1",
