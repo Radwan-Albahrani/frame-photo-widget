@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { AlbumsService } from "@backend/api/albums/albums.service";
 import { GroupsService } from "@backend/api/groups/groups.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
@@ -82,7 +83,10 @@ export default function NameScreen() {
       : "New album";
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.surface, padding: space.xl, gap: space.xl }}>
+    <SafeAreaView
+      edges={["left", "right"]}
+      style={{ flex: 1, backgroundColor: colors.surface, padding: space.xl, gap: space.xl }}
+    >
       <Text variant="title2">{title}</Text>
       <TextInput
         value={value}
@@ -125,6 +129,6 @@ export default function NameScreen() {
           style={{ flex: 1 }}
         />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }

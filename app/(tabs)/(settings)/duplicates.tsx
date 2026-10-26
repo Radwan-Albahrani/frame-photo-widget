@@ -10,9 +10,11 @@ import { WidgetService } from "@backend/api/widget/widget.service";
 import { photoUri } from "@native/photoStore";
 import { EmptyState, Text } from "@ui/components";
 import { countLabel, photoCountLabel } from "@ui/format";
+import { useContentFrame } from "@ui/layout/useContentFrame";
 import { colors, radius, space } from "@ui/theme";
 
 export default function DuplicatesScreen() {
+  const frame = useContentFrame();
   const [sets, setSets] = useState<DuplicateSet[]>([]);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(true);
@@ -49,7 +51,13 @@ export default function DuplicatesScreen() {
       <ScrollView
         style={{ flex: 1 }}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxxl * 3 }}
+        contentContainerStyle={{
+          paddingTop: space.lg,
+          paddingLeft: frame.left + space.lg,
+          paddingRight: frame.right + space.lg,
+          gap: space.lg,
+          paddingBottom: space.xxxl * 3,
+        }}
       >
         {scanning ? (
           <View style={{ paddingTop: space.xxxl * 2, alignItems: "center", gap: space.md }}>

@@ -94,3 +94,38 @@ grep -A2 UIUserInterfaceStyle ios/Frame/Info.plist
 
 It replaces the Liquid Glass material with a flat fill. Set `tintColor` for the selected item and
 leave the background alone.
+
+## iPhone Duo: the side bar, the fold and the grids
+
+iPhone Duo needs **Xcode 27.1** (the iOS 27.1 SDK). Built with an older SDK, the app is letterboxed in the
+middle of the inner display instead of filling it. Test on the iPhone Duo simulator in Device Hub, which
+can fold it to any angle.
+
+Outside inner-display portrait, iOS moves the status bar, the tab bar and the toolbar into a vertical
+**side bar** on one edge. It reports that bar as a left or right safe-area inset, about 84pt. `NativeTabs`,
+`Stack` and the `@expo/ui` Form screens lay themselves out around it. Our own React Native content does
+not:
+
+- `contentInsetAdjustmentBehavior="automatic"` handles the top and bottom only. It does not yet add
+  the left and right insets ([react-native#59194](https://github.com/facebook/react-native/pull/59194)).
+  Until that ships, every full-width `ScrollView` pads its content with `useContentFrame()`'s `left`
+  and `right`. **When the React Native patch lands, remove the manual padding**, or the side bar's
+  width gets added twice.
+- Size from `useContentFrame().width` (the window width minus both side insets), read at render time.
+  Never cache it: folding, unfolding and Split View all resize the window.
+- Floating views position themselves from the insets (`frame.bottom`, `frame.left - frame.right`),
+  not fixed offsets.
+
+The photo grid and the album grid come from `gridLayout()` in `src/ui/layout/grid.ts`:
+
+- **Phones keep their old layout exactly**: 3 photo columns and 2 album columns, at the same sizes as
+  before. A unit test pins this.
+- **Wide windows use an even number of columns**, so the fold lands in a gutter instead of
+  through a photo.
+- **Partly open, the hinge gutter widens.** `FoldRegion` reads the active `division` region from
+  `react-native-reserved-regions`, and `gridLayout()` splits the columns in half, one half on each
+  side, so no cell sits on the bend. The library reports only *active* regions, and the fold is
+  active only when the phone is partly open. Flat, it reports nothing and the grid is a plain even
+  grid.
+- iOS does not let you test widgets or most other extensions on the iPhone Duo simulator. Check
+  them on a device.

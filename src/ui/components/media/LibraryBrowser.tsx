@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { ScrollView, View, useWindowDimensions } from "react-native";
+import { ScrollView, View } from "react-native";
 import { AlbumsService, type AlbumWithCount } from "@backend/api/albums/albums.service";
 import {
   GroupsService,
@@ -19,6 +19,10 @@ import { ConfirmDialog } from "@ui/components/overlays/ConfirmDialog";
 import { groupCountLabel, photoCountLabel } from "@ui/format";
 import { albumHeaders } from "@ui/header/albumHeader";
 import { folderHeaders } from "@ui/header/folderHeader";
+import { FoldRegion } from "@ui/layout/FoldRegion";
+import { GridRows } from "@ui/layout/GridRows";
+import { gridLayout } from "@ui/layout/grid";
+import { useContentFrame } from "@ui/layout/useContentFrame";
 import { zoomParams } from "@ui/zoom";
 import {
   type DragItem,
@@ -30,7 +34,7 @@ import {
 } from "@ui/menu";
 import { space } from "@ui/theme";
 
-const COLUMNS = 2;
+const CARD_CELL = 150;
 const MOVE_PREFIX = "move:";
 const RENAME = "rename";
 const DELETE = "delete";
@@ -77,7 +81,7 @@ function cardActions(moveTargets: MenuAction[], deleteLabel: string): MenuAction
 
 export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const frame = useContentFrame();
   const [groups, setGroups] = useState<GroupWithCounts[]>([]);
   const [albums, setAlbums] = useState<AlbumWithCount[]>([]);
   const [covers, setCovers] = useState<Record<string, (string | null)[]>>({});
@@ -238,7 +242,7 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
     });
   };
 
-  const cardSize = (width - space.lg * (COLUMNS + 1)) / COLUMNS;
+  const gridWidth = frame.width - space.lg * 2;
   const isEmpty = groups.length === 0 && albums.length === 0;
 
   const ownedIds = [...groups.map((group) => group.id), ...albums.map((album) => album.id)];
@@ -252,7 +256,13 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
       <DropZone
         ownedIds={ownedIds}
         onDrop={(items) => void moveItems(items, groupId)}
-        style={{ flexGrow: 1, padding: space.lg, paddingBottom: space.xxxl * 3 }}
+        style={{
+          flexGrow: 1,
+          paddingTop: space.lg,
+          paddingLeft: frame.left + space.lg,
+          paddingRight: frame.right + space.lg,
+          paddingBottom: space.xxxl * 3,
+        }}
       >
         {isEmpty ? (
           <View style={{ paddingTop: space.xxxl * 2 }}>
@@ -274,86 +284,99 @@ export function LibraryBrowser({ groupId }: LibraryBrowserProps) {
             />
           </View>
         ) : (
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: space.lg,
-            }}
-          >
-            {groups.map((group) => {
-              const blocked = subtrees[group.id] ?? [group.id];
-              const targets = moveSubactions(
-                folders.filter((folder) => !blocked.includes(folder.id)),
-                group.parentId
-              );
+          <FoldRegion width={gridWidth}>
+            {(fold) => {
+              const layout = gridLayout({
+                width: gridWidth,
+                gap: space.lg,
+                targetCell: CARD_CELL,
+                minColumns: 2,
+                fold,
+              });
+              const cardSize = layout.cellSize;
               return (
-                <HoldMenu
-                  key={group.id}
-                  actions={cardActions(targets, "Delete folder")}
-                  onPressAction={(event) => onGroupAction(group, event)}
-                  onPress={() => openFolder(group)}
-                  title={group.name}
-                  accessibilityLabel={`${group.name}, ${groupCountLabel(
-                    group.albumCount,
-                    group.childGroupCount
-                  )}`}
-                  accessibilityHint="Touch and hold for folder actions, or drag albums onto it"
-                  drag={{ id: group.id, kind: "group" }}
-                  drop={{
-                    accepts: FOLDER_ACCEPTS,
-                    onDrop: (items) => void moveItems(items, group.id),
-                    onSpringLoad: () => openFolder(group),
-                  }}
-                >
-                  <GroupCard
-                    name={group.name}
-                    albumCount={group.albumCount}
-                    folderCount={group.childGroupCount}
-                    coverUris={covers[group.id] ?? []}
-                    size={cardSize}
-                    zoomSourceId={folderZoomId(group.id)}
-                  />
-                </HoldMenu>
+                <GridRows layout={layout} rowGap={space.lg}>
+                  {groups.map((group) => {
+                    const blocked = subtrees[group.id] ?? [group.id];
+                    const targets = moveSubactions(
+                      folders.filter((folder) => !blocked.includes(folder.id)),
+                      group.parentId
+                    );
+                    return (
+                      <HoldMenu
+                        key={group.id}
+                        actions={cardActions(targets, "Delete folder")}
+                        onPressAction={(event) => onGroupAction(group, event)}
+                        onPress={() => openFolder(group)}
+                        title={group.name}
+                        accessibilityLabel={`${group.name}, ${groupCountLabel(
+                          group.albumCount,
+                          group.childGroupCount
+                        )}`}
+                        accessibilityHint="Touch and hold for folder actions, or drag albums onto it"
+                        drag={{ id: group.id, kind: "group" }}
+                        drop={{
+                          accepts: FOLDER_ACCEPTS,
+                          onDrop: (items) => void moveItems(items, group.id),
+                          onSpringLoad: () => openFolder(group),
+                        }}
+                      >
+                        <GroupCard
+                          name={group.name}
+                          albumCount={group.albumCount}
+                          folderCount={group.childGroupCount}
+                          coverUris={covers[group.id] ?? []}
+                          size={cardSize}
+                          zoomSourceId={folderZoomId(group.id)}
+                        />
+                      </HoldMenu>
+                    );
+                  })}
+                  {albums.map((album) => (
+                    <View key={album.id}>
+                      <HoldMenu
+                        actions={cardActions(
+                          moveSubactions(folders, album.groupId),
+                          "Delete album"
+                        )}
+                        onPressAction={(event) => onAlbumAction(album, event)}
+                        onPress={() => openAlbum(album)}
+                        title={album.name}
+                        accessibilityLabel={`${album.name}, ${photoCountLabel(album.photoCount)}`}
+                        accessibilityHint="Touch and hold for album actions, or drag it onto a folder or album"
+                        drag={{ id: album.id, kind: "album" }}
+                        drop={{
+                          accepts: ALBUM_ACCEPTS,
+                          onDrop: (items) => void makeFolderWith(album, items),
+                        }}
+                      >
+                        <AlbumCard
+                          name={album.name}
+                          photoCount={album.photoCount}
+                          coverUri={
+                            album.coverFileName === null ? null : photoUri(album.coverFileName)
+                          }
+                          size={cardSize}
+                          recyclingKey={album.id}
+                          zoomSourceId={albumZoomId(album.id)}
+                        />
+                      </HoldMenu>
+                      {deleteTargetId === album.id ? (
+                        <ConfirmDialog
+                          visible={confirmingDelete}
+                          title={`Delete "${album.name}"?`}
+                          message={`${photoCountLabel(album.photoCount)} will be removed from Frame. Your originals in Photos are untouched.`}
+                          confirmLabel="Delete album"
+                          onVisibleChange={setConfirmingDelete}
+                          onConfirm={() => void deleteAlbum(album)}
+                        />
+                      ) : null}
+                    </View>
+                  ))}
+                </GridRows>
               );
-            })}
-            {albums.map((album) => (
-              <View key={album.id}>
-                <HoldMenu
-                  actions={cardActions(moveSubactions(folders, album.groupId), "Delete album")}
-                  onPressAction={(event) => onAlbumAction(album, event)}
-                  onPress={() => openAlbum(album)}
-                  title={album.name}
-                  accessibilityLabel={`${album.name}, ${photoCountLabel(album.photoCount)}`}
-                  accessibilityHint="Touch and hold for album actions, or drag it onto a folder or album"
-                  drag={{ id: album.id, kind: "album" }}
-                  drop={{
-                    accepts: ALBUM_ACCEPTS,
-                    onDrop: (items) => void makeFolderWith(album, items),
-                  }}
-                >
-                  <AlbumCard
-                    name={album.name}
-                    photoCount={album.photoCount}
-                    coverUri={album.coverFileName === null ? null : photoUri(album.coverFileName)}
-                    size={cardSize}
-                    recyclingKey={album.id}
-                    zoomSourceId={albumZoomId(album.id)}
-                  />
-                </HoldMenu>
-                {deleteTargetId === album.id ? (
-                  <ConfirmDialog
-                    visible={confirmingDelete}
-                    title={`Delete "${album.name}"?`}
-                    message={`${photoCountLabel(album.photoCount)} will be removed from Frame. Your originals in Photos are untouched.`}
-                    confirmLabel="Delete album"
-                    onVisibleChange={setConfirmingDelete}
-                    onConfirm={() => void deleteAlbum(album)}
-                  />
-                ) : null}
-              </View>
-            ))}
-          </View>
+            }}
+          </FoldRegion>
         )}
       </DropZone>
     </ScrollView>

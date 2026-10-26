@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, ScrollView, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 import { AlbumsService } from "@backend/api/albums/albums.service";
 import { GroupsService } from "@backend/api/groups/groups.service";
 import { PhotosService } from "@backend/api/photos/photos.service";
@@ -20,7 +20,12 @@ import {
   sameAlbumHeader,
 } from "@ui/header/albumHeader";
 import { useScreenHeader } from "@ui/header/useScreenHeader";
+import { FoldRegion } from "@ui/layout/FoldRegion";
+import { gridLayout } from "@ui/layout/grid";
+import { useContentFrame } from "@ui/layout/useContentFrame";
 import { colors, radius, space } from "@ui/theme";
+
+const PHOTO_CELL = 110;
 
 function samePhotos(a: PhotoRow[], b: PhotoRow[]): boolean {
   return (
@@ -34,7 +39,7 @@ function samePhotos(a: PhotoRow[], b: PhotoRow[]): boolean {
 
 export default function AlbumScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const frame = useContentFrame();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [header, commitHeader] = useScreenHeader({
@@ -158,9 +163,8 @@ export default function AlbumScreen() {
     setConfirmingDelete(true);
   }, [id, deleteAlbum]);
 
-  const columns = 3;
   const gutter = 6;
-  const cell = (width - gutter * (columns + 1)) / columns;
+  const gridWidth = frame.width - gutter * 2;
   const selecting = selected.length > 0;
 
   useFocusEffect(
@@ -194,7 +198,8 @@ export default function AlbumScreen() {
         style={{ flex: 1 }}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{
-          paddingHorizontal: gutter,
+          paddingLeft: frame.left + gutter,
+          paddingRight: frame.right + gutter,
           paddingBottom: space.xxxl * 3,
           alignItems: "center",
         }}
@@ -214,28 +219,41 @@ export default function AlbumScreen() {
             <Text variant="footnote" tone="muted" center style={{ paddingVertical: space.sm }}>
               Tap to select. Touch and hold to drag a photo into a new order.
             </Text>
-            <ReorderableGrid
-              items={photos}
-              numColumns={columns}
-              cellSize={cell}
-              gap={gutter}
-              onReorder={(orderedIds) => void applyOrder(orderedIds)}
-              onPress={(photo) =>
-                select(
-                  selected.includes(photo.id)
-                    ? selected.filter((value) => value !== photo.id)
-                    : [...selected, photo.id]
-                )
-              }
-              renderItem={(photo) => (
-                <PhotoCell
-                  photo={photo}
-                  size={cell}
-                  selected={selected.includes(photo.id)}
-                  selecting={selecting}
-                />
-              )}
-            />
+            <FoldRegion width={gridWidth}>
+              {(fold) => {
+                const layout = gridLayout({
+                  width: gridWidth,
+                  gap: gutter,
+                  targetCell: PHOTO_CELL,
+                  minColumns: 3,
+                  fold,
+                });
+                return (
+                  <ReorderableGrid
+                    items={photos}
+                    layout={layout}
+                    width={gridWidth}
+                    gap={gutter}
+                    onReorder={(orderedIds) => void applyOrder(orderedIds)}
+                    onPress={(photo) =>
+                      select(
+                        selected.includes(photo.id)
+                          ? selected.filter((value) => value !== photo.id)
+                          : [...selected, photo.id]
+                      )
+                    }
+                    renderItem={(photo) => (
+                      <PhotoCell
+                        photo={photo}
+                        size={layout.cellSize}
+                        selected={selected.includes(photo.id)}
+                        selecting={selecting}
+                      />
+                    )}
+                  />
+                );
+              }}
+            </FoldRegion>
           </>
         )}
       </ScrollView>
@@ -244,8 +262,9 @@ export default function AlbumScreen() {
         <View
           style={{
             position: "absolute",
-            bottom: space.xxxl * 2,
+            bottom: frame.bottom + space.xxxl,
             alignSelf: "center",
+            marginLeft: frame.left - frame.right,
             flexDirection: "row",
             alignItems: "center",
             gap: space.sm,

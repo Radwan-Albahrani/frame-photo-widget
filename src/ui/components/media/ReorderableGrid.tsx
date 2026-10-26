@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
+import { cellIndexAt, cellPosition, gridHeight, type GridLayout } from "@ui/layout/grid";
 
 export interface ReorderableItem {
   id: string;
@@ -17,8 +18,8 @@ export interface ReorderableItem {
 
 interface ReorderableGridProps<T extends ReorderableItem> {
   items: T[];
-  numColumns: number;
-  cellSize: number;
+  layout: GridLayout;
+  width: number;
   gap: number;
   renderItem: (item: T) => React.ReactNode;
   onReorder: (orderedIds: string[]) => void;
@@ -27,32 +28,10 @@ interface ReorderableGridProps<T extends ReorderableItem> {
 
 const SPRING = { damping: 20, stiffness: 200, mass: 0.5 };
 
-function positionOf(index: number, numColumns: number, cellSize: number, gap: number) {
-  "worklet";
-  return {
-    x: (index % numColumns) * (cellSize + gap),
-    y: Math.floor(index / numColumns) * (cellSize + gap),
-  };
-}
-
-function indexAt(
-  x: number,
-  y: number,
-  numColumns: number,
-  cellSize: number,
-  gap: number,
-  count: number
-) {
-  "worklet";
-  const column = Math.max(0, Math.min(numColumns - 1, Math.round(x / (cellSize + gap))));
-  const row = Math.max(0, Math.round(y / (cellSize + gap)));
-  return Math.max(0, Math.min(count - 1, row * numColumns + column));
-}
-
 export function ReorderableGrid<T extends ReorderableItem>({
   items,
-  numColumns,
-  cellSize,
+  layout,
+  width,
   gap,
   renderItem,
   onReorder,
@@ -65,19 +44,15 @@ export function ReorderableGrid<T extends ReorderableItem>({
     order.value = signature.length === 0 ? [] : signature.split(",");
   }, [signature, order]);
 
-  const rows = Math.ceil(items.length / numColumns);
-  const height = rows === 0 ? 0 : rows * cellSize + (rows - 1) * gap;
-
   return (
-    <View style={{ height, width: numColumns * cellSize + (numColumns - 1) * gap }}>
+    <View style={{ height: gridHeight(items.length, layout, gap), width }}>
       {items.map((item, initialIndex) => (
         <ReorderableCell
           key={item.id}
           item={item}
           initialIndex={initialIndex}
           order={order}
-          numColumns={numColumns}
-          cellSize={cellSize}
+          layout={layout}
           gap={gap}
           count={items.length}
           onReorder={onReorder}
@@ -94,8 +69,7 @@ interface CellProps<T extends ReorderableItem> {
   item: T;
   initialIndex: number;
   order: SharedValue<string[]>;
-  numColumns: number;
-  cellSize: number;
+  layout: GridLayout;
   gap: number;
   count: number;
   onReorder: (orderedIds: string[]) => void;
@@ -107,15 +81,14 @@ function ReorderableCell<T extends ReorderableItem>({
   item,
   initialIndex,
   order,
-  numColumns,
-  cellSize,
+  layout,
   gap,
   count,
   onReorder,
   onPress,
   children,
 }: CellProps<T>) {
-  const home = positionOf(initialIndex, numColumns, cellSize, gap);
+  const home = cellPosition(initialIndex, layout, gap);
   const translateX = useSharedValue(home.x);
   const translateY = useSharedValue(home.y);
   const originX = useSharedValue(home.x);
@@ -126,7 +99,7 @@ function ReorderableCell<T extends ReorderableItem>({
     () => order.value.indexOf(item.id),
     (position, previous) => {
       if (position < 0 || dragging.value) return;
-      const target = positionOf(position, numColumns, cellSize, gap);
+      const target = cellPosition(position, layout, gap);
       if (previous === null || previous < 0) {
         translateX.value = target.x;
         translateY.value = target.y;
@@ -135,7 +108,7 @@ function ReorderableCell<T extends ReorderableItem>({
       translateX.value = withSpring(target.x, SPRING);
       translateY.value = withSpring(target.y, SPRING);
     },
-    [numColumns, cellSize, gap]
+    [layout, gap]
   );
 
   const pan = Gesture.Pan()
@@ -151,7 +124,7 @@ function ReorderableCell<T extends ReorderableItem>({
       translateY.value = originY.value + event.translationY;
 
       const from = order.value.indexOf(item.id);
-      const to = indexAt(translateX.value, translateY.value, numColumns, cellSize, gap, count);
+      const to = cellIndexAt(translateX.value, translateY.value, layout, gap, count);
       if (from >= 0 && to !== from) {
         const next = [...order.value];
         next.splice(from, 1);
@@ -161,7 +134,7 @@ function ReorderableCell<T extends ReorderableItem>({
     })
     .onEnd(() => {
       const settled = order.value.indexOf(item.id);
-      const target = positionOf(Math.max(settled, 0), numColumns, cellSize, gap);
+      const target = cellPosition(Math.max(settled, 0), layout, gap);
       translateX.value = withSpring(target.x, SPRING);
       translateY.value = withSpring(target.y, SPRING);
     })
@@ -177,8 +150,8 @@ function ReorderableCell<T extends ReorderableItem>({
 
   const style = useAnimatedStyle(() => ({
     position: "absolute",
-    width: cellSize,
-    height: cellSize,
+    width: layout.cellSize,
+    height: layout.cellSize,
     transform: [
       { translateX: translateX.value },
       { translateY: translateY.value },
