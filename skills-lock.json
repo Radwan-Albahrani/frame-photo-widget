@@ -5,37 +5,43 @@
       "source": "emilkowalski/skills",
       "sourceType": "github",
       "skillPath": "skills/animate/SKILL.md",
-      "computedHash": "609e30351bf518b21a8cfe87cd1111554855527075d6563605bafe61963252f7"
+      "computedHash": "7598d33e7f60dd5c24531eaaa897621cc3bdb48e8050324211627973bc59c4ce"
     },
     "animate-expo": {
       "source": "emilkowalski/skills",
       "sourceType": "github",
       "skillPath": "skills/animate-expo/SKILL.md",
-      "computedHash": "c9eaf6603b97ca61b05c7561e1045b2f58b6d84cdf8d67565bff23a9ff94ce8a"
+      "computedHash": "5de09593d564091f9db60aabede7bed760251e118548272050a247c653c417d2"
     },
     "animation-vocabulary": {
       "source": "emilkowalski/skills",
       "sourceType": "github",
       "skillPath": "skills/animation-vocabulary/SKILL.md",
-      "computedHash": "39319fc9a33c15be08666b3685f58666f042ff36bb902b7814c0834a5ba99df4"
+      "computedHash": "0058036865ecbb864fd0c4132efcc62425355d6e99c7e6ef6a936742d62a5dea"
+    },
+    "app-store-screenshots": {
+      "source": "parthjadhav/app-store-screenshots",
+      "sourceType": "github",
+      "skillPath": "skills/app-store-screenshots/SKILL.md",
+      "computedHash": "f06a3a59823f99b21be0dd21e82575596b48cb404fd19a6a0db4cc37fba6c883"
     },
     "apple-design": {
       "source": "emilkowalski/skills",
       "sourceType": "github",
       "skillPath": "skills/apple-design/SKILL.md",
-      "computedHash": "8b94db67cb9edaad5f1501010804caa610131f1d2dfda0a27664b2e858deade3"
+      "computedHash": "0190417d092a0df447b000154e39733ea6d97efad6d3bec8a6ce3845aeb88914"
     },
     "diagnose": {
       "source": "LegendApp/legend-skills",
       "sourceType": "github",
       "skillPath": "diagnose/SKILL.md",
-      "computedHash": "bb6f2f6537dd9ac1ae9d987088a36671782d1fa864f4a4d9b1212eb351760f40"
+      "computedHash": "850e00dbab31216d3e04b5a2f2013d6ce000523d9edcb01e7eb4f28877e756b9"
     },
     "diagnose-fix-loop": {
       "source": "LegendApp/legend-skills",
       "sourceType": "github",
       "skillPath": "diagnose-fix-loop/SKILL.md",
-      "computedHash": "c7854d200bcc853aee1843f8b05f02181596f3ceb0df398c45745de7fed3a73b"
+      "computedHash": "c922d162a4c6c2be18c0beb0ef001d5d2917faeb789d5a1489ecc7dcab93a199"
     },
     "drizzle": {
       "source": "./node_modules/drizzle-kit/skills",
@@ -81,55 +87,68 @@
       "source": "emilkowalski/skills",
       "sourceType": "github",
       "skillPath": "skills/find-animation-opportunities/SKILL.md",
-      "computedHash": "8fb8492eb8fbed1313cb430b5831d925d9b8964ca24f3c41a6244cbd1fd98732"
+      "computedHash": "465d087c41768e4f14ed640dd049036009f613feb55baaa5831b68b33178f9d2"
     },
     "genie": {
       "source": "y0u-0/genie-react",
       "sourceType": "github",
       "skillPath": "skills/genie/SKILL.md",
-      "computedHash": "85c5b25b28408b0de32cfe43941b1354455c9ff4e1a0a5dc2cde7154777b14c1"
+      "computedHash": "57ddf6a625f729e5c7a8e66a7488b05e4ce3d9f8833add2760cc890e88c683dc"
     },
     "improve-animations": {
       "source": "emilkowalski/skills",
       "sourceType": "github",
       "skillPath": "skills/improve-animations/SKILL.md",
-      "computedHash": "eeb219a407e325b687af88db25771cc3018e3148245604112f5ac6990b6fd79c"
+      "computedHash": "524ea241e41d58bbdd8e288700fe24f5725e2a2f3ae7186ad7cebf9055058356"
+    },
+    "iphone-duo-design": {
+      "source": "belweave/iphone-duo-design",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "db50eade56f4e59d0a43d99d8f24bdd9d51c47893083085a036624e98ed43163"
     },
     "legend-list-best-practices": {
       "source": "LegendApp/legend-skills",
       "sourceType": "github",
       "skillPath": "legend-list-best-practices/SKILL.md",
-      "computedHash": "61b4dec19494fcae599b7aedfa1553323a46f446536feeb9b2a584a298d45cef"
+      "computedHash": "1e941c63bacd851f3ed9fd879c4cb98849cee00f6c361f65444ed46f5df4ee5d"
     },
     "legend-state-best-practices": {
       "source": "LegendApp/legend-skills",
       "sourceType": "github",
       "skillPath": "legend-state-best-practices/SKILL.md",
-      "computedHash": "84f1cf99560fdf14eb722a8dafe4e6d09f59b5db2749a80ef97fcf35f0ffe022"
+      "computedHash": "243084249aeaaee86c7140c69ed739d99daeaad48baa6c9a6945ecf9a4673ada"
     },
     "no-ai-slop": {
       "source": "petergyang/no-ai-slop",
       "sourceType": "github",
       "skillPath": "skills/no-ai-slop/SKILL.md",
-      "computedHash": "7ea5a3f35faef4856e30f4ee7556e4748f799caeb1ca498229fd75510623bef4"
+      "computedHash": "77d287e3c8e09874e144ee35f6fb0ee1adcf609012c7c3273e9c8fe2054ce5af"
     },
     "react-coding-style": {
       "source": "LegendApp/legend-skills",
       "sourceType": "github",
       "skillPath": "react-coding-style/SKILL.md",
-      "computedHash": "0b5629a19a73cad9d0ee56dd77acd41031ab7e2275df056b2288a6f1583d6e68"
+      "computedHash": "c435403556818ebcea990bd781c6bebd3ec9a371a7a18fbeac0b2a703c469c7a"
     },
     "review-animations": {
       "source": "emilkowalski/skills",
       "sourceType": "github",
       "skillPath": "skills/review-animations/SKILL.md",
-      "computedHash": "b9f669af5ae280c19a592a94611520335a81de25c88f225bf60ae4b2d66c8c7c"
+      "computedHash": "b4e5f0f4fe3e2743c85bf7354108f48a0b9d502cb20ef5c4a9c195da91f93736"
+    },
+    "rozenite": {
+      "source": "rozenite",
+      "sourceType": "node_modules",
+      "skillPath": "skills/rozenite/SKILL.md",
+      "version": "2.5.0",
+      "computedHash": "ad4af8526c7857048f884918fd5325fdf710b9faa2d0112e64c9f1492baf912e"
     },
     "simplify": {
       "source": "LegendApp/legend-skills",
       "sourceType": "github",
       "skillPath": "simplify/SKILL.md",
-      "computedHash": "bfbefa03b417407210f6fd35a008ec8b4edf1f34bd7e656e54a93d586c45c59e"
+      "computedHash": "883ab840cba99765debbf83a4d1d15915a00512971bb9ccae03d34191da00f4c"
     }
   }
 }

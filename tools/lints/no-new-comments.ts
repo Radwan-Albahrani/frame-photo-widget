@@ -11,6 +11,7 @@ export interface CommentHit {
 
 const CHECKED_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
 const GENERATED_FILE = /\.gen\.(ts|tsx|js|jsx)$/;
+const VENDORED_SKILLS = /^\.agents\//;
 
 const ALLOWED_DIRECTIVE_PREFIXES = [
   "biome-ignore",
@@ -190,7 +191,8 @@ export function findCommentViolations(comparison?: RevisionComparison): Violatio
   const violations: Violation[] = [];
 
   for (const [file, addedLines] of addedLinesByFile) {
-    if (!CHECKED_EXTENSIONS.test(file) || GENERATED_FILE.test(file)) continue;
+    if (!CHECKED_EXTENSIONS.test(file) || GENERATED_FILE.test(file) || VENDORED_SKILLS.test(file))
+      continue;
     const checkedContent = git([
       "show",
       resolvedComparison ? `${resolvedComparison.head}:${file}` : `:${file}`,

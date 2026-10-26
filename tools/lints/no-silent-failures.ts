@@ -185,7 +185,8 @@ function run(): void {
 
   const offences: string[] = [];
   for (const [file, addedLines] of parseAddedLines(diff)) {
-    if (!/\.tsx?$/.test(file) || file.startsWith("tools/lints/")) continue;
+    if (!/\.tsx?$/.test(file) || file.startsWith("tools/lints/") || file.startsWith(".agents/"))
+      continue;
     let hits: SilentFailure[];
     try {
       hits = findSilentFailures(readFileSync(file, "utf8"), file);

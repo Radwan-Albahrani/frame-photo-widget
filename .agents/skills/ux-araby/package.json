@@ -1,0 +1,33 @@
+{
+  "name": "ux-araby",
+  "version": "1.0.0",
+  "description": "Arabic UX writing skill: create, edit, localize, and audit Arabic UX microcopy in فصحى مبسطة, and remove عرنجية.",
+  "license": "MIT",
+  "author": "Abad team (https://abad.life)",
+  "homepage": "https://github.com/AbadLife/ux-araby#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AbadLife/ux-araby.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AbadLife/ux-araby/issues"
+  },
+  "keywords": [
+    "arabic",
+    "arabic-ux",
+    "ux-writing",
+    "ux",
+    "microcopy",
+    "localization",
+    "i18n",
+    "l10n",
+    "rtl",
+    "agent-skill"
+  ],
+  "files": [
+    "SKILL.md",
+    "README.md",
+    "LICENSE",
+    "references/"
+  ]
+}
