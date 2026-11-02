@@ -1,0 +1,10 @@
+{
+  "en-US": {
+    "whatsNew": "A small update to keep Frame up to date and reliable.\n\n• Latest iOS frameworks and fixes\n• Steadier side bar on iPhone Duo when Frame opens unfolded",
+    "promotionalText": "Free forever. No ads, no subscriptions, no paywall, no limits. Now made for iPhone Duo, with albums that fill the whole inner display."
+  },
+  "es-MX": {
+    "whatsNew": "Una actualización pequeña para mantener Frame al día y confiable.\n\n• Frameworks y correcciones más recientes de iOS\n• Barra lateral más estable en iPhone Duo al abrir Frame desplegado",
+    "promotionalText": "Gratis para siempre. Sin anuncios, sin suscripciones, sin muro de pago, sin límites. Ahora hecha para iPhone Duo, con álbumes que llenan toda la pantalla interior."
+  }
+}

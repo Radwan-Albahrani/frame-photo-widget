@@ -238,3 +238,39 @@ Non-metadata items that matter as much as the copy:
 7. **Re-run the audit before each release:** `asc metadata keywords audit --app 6814411936 --version <v>` catches duplicate phrases, name/subtitle overlap and unused character budget automatically.
 8. **Watch competitor moves.** If the category leader removes its paywall, the wedge narrows and the positioning needs to shift to "focused and fast" rather than "free". Re-read their recent reviews quarterly.
 9. **Localise beyond English** once there is traction. The keyword field is per-locale, and es-MX / pt-BR / de-DE / ja are far less contested for this category than en-US.
+
+---
+
+## 1.1.1 search update (November 2026)
+
+**What we found.** Searching the exact name, "Frame: Photo Widget Album", finds Frame, so it is in Apple's
+index. Broader searches ("frame", "widgets", "frame photo widget") do not show it near the top. The cause
+is ranking, not indexing. With **zero ratings** and few installs, Frame cannot outrank apps like Frameo
+(451K ratings) on short, popular terms. Apple's public iTunes Search API reported much better ranks than
+the App Store app actually shows, so **don't use it to judge ranking**. Check on a device.
+
+**Changes in 1.1.1**
+
+| Field | Before | After |
+|---|---|---|
+| en-US subtitle | `Home Screen Slideshow, No Ads` | `Pictures & Slideshow Widgets` |
+| en-US keywords | `picture,gallery,shuffle,digital,free,rotate,memories,family,pet,baby,private,custom,unlimited,travel` | `homescreen,gallery,shuffle,memories,aesthetic,digital,couple,family,friends,pet,baby,travel,rotate` |
+| es-MX listing | none | name `Frame: Widget de Fotos`, subtitle `Álbum y presentación de fotos`, full Spanish description, keywords `galeria,inicio,pantalla,recuerdos,familia,pareja,amigos,mascota,images,cute,random,display,kids` |
+
+- **"No Ads" left the subtitle.** It has no search value. The free promise is still in the promotional
+  text, the description and the screenshots.
+- **The keywords stop repeating words that are already indexed.** The name and subtitle already cover
+  frame, photo, widget(s), album, pictures and slideshow. Words nobody searches for were cut (private,
+  custom, unlimited, free).
+- **es-MX is there for search reach.** The US storefront also indexes the Spanish (Mexico) listing, so its
+  keyword field holds only words the en-US listing does not cover. Apple doesn't document this; ASO tools
+  observe it. Frame's interface is still English only.
+- **No competitor trademarks in keywords** (for example, Locket or Polaroid). App Review rejects them.
+
+**The bigger lever is ratings.** 1.1.1 asks for a rating with Apple's own prompt
+(`src/backend/api/review`). It only asks once a placed widget is actually showing photos (the Diagnostics
+`healthy` verdict), then waits at least 180 days before asking again. iOS also limits the prompt to three
+times a year.
+
+**Running alongside it:** the in-app event "Photo Widgets for iPhone Duo" (Major Update, 5 Nov to 4 Dec
+2026). An event's name is searchable without a new app version.
