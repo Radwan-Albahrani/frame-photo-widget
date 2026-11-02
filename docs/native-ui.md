@@ -129,9 +129,8 @@ The photo grid and the album grid come from `gridLayout()` in `src/ui/layout/gri
   grid.
 - iOS does not let you test widgets or most other extensions on the iPhone Duo simulator. Check
   them on a device.
-- **`patches/react-native-screens@4.30.0.patch`** back-ports
-  [react-native-screens#4990](https://github.com/software-mansion/react-native-screens/pull/4990). Without
-  it, a cold launch with the phone already open shows the side bar with **no tab bar**: the tab controller
-  is sized to the main screen before it is attached, and UIKit doesn't rebuild the bar after the resize.
-  **Delete the patch and its `patchedDependencies` entry when moving to react-native-screens 4.31**, which
-  includes the fix.
+- **react-native-screens 4.30.1 or later is required.** Older versions hit
+  [react-native-screens#4990](https://github.com/software-mansion/react-native-screens/pull/4990): a cold
+  launch with the phone already open shows the side bar with **no tab bar**, because the tab controller is
+  sized to the main screen before it is attached and UIKit doesn't rebuild the bar after the resize. 1.1.0
+  carried a back-port as a patch; 4.30.1 ships the fix, so the patch is gone.
