@@ -23,6 +23,11 @@ export interface DiagnosticsReport {
 }
 
 export class DiagnosticsService {
+  static async health(): Promise<Health> {
+    const placed = await placedWidgetCount();
+    return verdict(placed, readWidgetStatus(WidgetService.readStatus(), placed, Date.now()));
+  }
+
   static async read(): Promise<DiagnosticsReport> {
     const now = Date.now();
     const [albums, placed, bytes, display] = await Promise.all([

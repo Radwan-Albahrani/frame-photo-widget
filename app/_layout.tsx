@@ -1,7 +1,9 @@
 import { DarkTheme, Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
+import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { ReviewService } from "@backend/api/review/review.service";
 import { WidgetService } from "@backend/api/widget/widget.service";
 import { migrate } from "@backend/core/db/client";
 import { bestEffort } from "@backend/core/log/logger";
@@ -22,6 +24,17 @@ export default function RootLayout() {
       setReady(true)
     );
   }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    const askIfEarned = (trigger: string) =>
+      void bestEffort(ReviewService.askIfEarned(), { op: "review.askIfEarned", trigger });
+    askIfEarned("launch");
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") askIfEarned("foreground");
+    });
+    return () => subscription.remove();
+  }, [ready]);
 
   if (!ready) return null;
 
